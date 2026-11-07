@@ -107,9 +107,20 @@ class EvaluatorContractTests(unittest.TestCase):
         self.assertEqual(str(upstream.url), "http://127.0.0.1:8080/v1/chat/completions")
         self.assertNotIn("authorization", upstream.headers)
         self.assertEqual(system["role"], "system")
+        rubric = json.loads(system["content"].split("Checklist JSON:\n")[1])
+        for rule, criterion in zip(rubric, self.data["checklist"]["criteria"], strict=True):
+            for field in ("id", "label", "instruction"):
+                self.assertEqual(rule[field], criterion[field])
+            self.assertEqual(rule.get("na_rule"), criterion["na_rule"])
+        schema = self.requests[0]["response_format"]["schema"]
+        rows = schema["properties"]["grades"]["items"]
         self.assertEqual(
-            json.loads(system["content"].split("Checklist JSON:\n")[1]), self.data["checklist"]
+            [row["properties"]["id"]["const"] for row in rows],
+            [self.binary["criterion_id"], self.scale["criterion_id"]],
         )
+        self.assertEqual(rows[0]["properties"]["v"]["enum"], ["yes", "no"])
+        self.assertEqual(rows[1]["properties"]["v"]["enum"], [0, 5, 10, 15, 20, "na"])
+        self.assertEqual(schema["$defs"]["evidence"]["items"]["enum"], ["t1", "t2", "t3", "t4"])
         self.assertEqual(transcript["role"], "user")
         self.assertNotIn("<|im_end|>", transcript["content"])
         self.assertEqual(json.loads(transcript["content"])["turns"], self.data["conversation"]["turns"])
