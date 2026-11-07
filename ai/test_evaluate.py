@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import httpx
 
-from ml.main import app, provider_client
+from ai.main import app, provider_client
 
 
 def completion(grades: list[dict], model="test-model", *, gemini=False) -> httpx.Response:
@@ -251,7 +251,7 @@ class EvaluatorContractTests(unittest.TestCase):
             await asyncio.sleep(1)
             return completion([self.binary, self.scale])
 
-        with patch("ml.main.EVALUATION_TIMEOUT", 0.1):
+        with patch("ai.main.EVALUATION_TIMEOUT", 0.1):
             response = self.post(completion([]), slow_response)
         self.assertEqual(response.status_code, 504)
         self.assertEqual(response.json()["error"]["code"], "provider_timeout")

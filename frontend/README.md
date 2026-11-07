@@ -37,7 +37,7 @@ Start the backend on `127.0.0.1:8000`, then run:
 npm run dev
 ```
 
-Vite proxies relative `/api` requests to the backend in development. To serve the frontend with the backend, run `npm run build` and serve `frontend/dist/` at the backend origin. Organizer credentials and evaluator settings belong in the backend and ML configuration.
+Vite proxies relative `/api` requests to the backend in development. To serve the frontend with the backend, run `npm run build` and serve `frontend/dist/` at the backend origin. Set organizer credentials in the backend and provider settings in the AI evaluator.
 
 ## Milestone T-006 checks
 

@@ -1,4 +1,4 @@
-# Datadoom evaluator
+# Datadoom AI evaluator
 
 T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and checklist and returns live model metadata and one grade per criterion in checklist order. The backend owns scoring.
 
@@ -22,9 +22,9 @@ Hosted providers receive the submitted checklist and transcript. Keep keys in th
 Use Python 3.11 or newer. From the repository root, install the dependencies and start the evaluator in PowerShell.
 
 ```powershell
-python -m venv ml/.venv
-.\ml\.venv\Scripts\python.exe -m pip install -r ml/requirements.txt
-.\ml\.venv\Scripts\python.exe -m uvicorn ml.main:app --host 127.0.0.1 --port 8001
+python -m venv ai/.venv
+.\ai\.venv\Scripts\python.exe -m pip install -r ai/requirements.txt
+.\ai\.venv\Scripts\python.exe -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
 For a hosted provider, set its environment variables before starting Uvicorn. For example, in PowerShell 7 use `$env:EVALUATOR_PROVIDER = 'openai'` and `$env:OPENAI_API_KEY = Read-Host 'OpenAI API key' -MaskInput`. For llama.cpp, start the local model server using the steps below. Restart the evaluator after changing its environment.
@@ -45,13 +45,13 @@ Start the evaluator in a second terminal. `LLAMA_CPP_MODEL` must match the serve
 Run the offline contract tests from the repository root. They replace the upstream HTTP transport and exercise each provider's request and response format. Use the live smoke test with your configured key to verify hosted access.
 
 ```powershell
-.\ml\.venv\Scripts\python.exe -m unittest discover -s ml -p 'test_*.py' -v
+.\ai\.venv\Scripts\python.exe -m unittest discover -s ai -p 'test_*.py' -v
 ```
 
 For the T-001 live smoke test, send the synthetic Russian dialogue with the greeting criterion under a new ID.
 
 ```powershell
-$request = Get-Content -Raw -Encoding utf8 ml/smoke.json | ConvertFrom-Json
+$request = Get-Content -Raw -Encoding utf8 ai/smoke.json | ConvertFrom-Json
 $request.checklist.criteria = @($request.checklist.criteria[0])
 $request.checklist.criteria[0].id = 'greeting-live'
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8001/evaluate -ContentType 'application/json; charset=utf-8' -Body ($request | ConvertTo-Json -Depth 10 -Compress) | ConvertTo-Json -Depth 10
@@ -60,7 +60,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8001/evaluate -ContentType 
 Use the same endpoint to exercise all eight criteria when measuring full-checklist performance.
 
 ```powershell
-curl.exe --fail-with-body -sS -H 'Content-Type: application/json' --data-binary '@ml/smoke.json' -w '\nHTTP %{http_code} in %{time_total}s\n' http://127.0.0.1:8001/evaluate
+curl.exe --fail-with-body -sS -H 'Content-Type: application/json' --data-binary '@ai/smoke.json' -w '\nHTTP %{http_code} in %{time_total}s\n' http://127.0.0.1:8001/evaluate
 ```
 
 A successful response has HTTP 200, `mode: "live"`, and one grade per submitted criterion. Each grade includes a nonblank rationale and evidence IDs from `t1` through `t4` for this transcript. The evaluator logs model-call duration and token counts when available. It allows one repair for invalid output within a shared 55-second inference budget. Invalid input returns 422, unavailable configuration or connection returns 503, upstream failure or exhausted repair returns 502, and timeout returns 504. Error messages omit upstream response bodies and transcript text.
