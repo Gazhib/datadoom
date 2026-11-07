@@ -1,0 +1,51 @@
+{
+  "request": {
+    "conversation": {
+      "key": "kz-empathy",
+      "group_id": "synthetic-harness",
+      "conversation_id": "kz-empathy",
+      "language": "KZ",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Қосымша істемей қалды, есепті уақытында жібере алмадым."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Есепті уақытында жібере алмағаныңызға өкінемін. Қосымшаны жаңартуға көмектесейін."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C05",
+          "label": "Эмпатия и клиентоориентированность",
+          "instruction": "Yes for politeness and, when the client expresses dissatisfaction or inconvenience, acknowledgment of the specific problem.",
+          "kind": "binary",
+          "weight": 15,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C05": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    }
+  }
+}

@@ -128,7 +128,36 @@ class Model(ContractModel):
     model: NonBlank
 
 
+JudgeStatus = Literal["ok", "failed", "skipped"]
+
+
+class JudgeReport(ContractModel):
+    name: NonBlank
+    provider: ProviderName
+    model: NonBlank
+    host: NonBlank
+    fallback: bool
+    status: JudgeStatus
+    error_code: str | None
+    seconds: float | None
+
+
+class VoteReport(ContractModel):
+    criterion_id: NonBlank
+    value: GradeValue
+    agreement: float
+    ballots: dict[str, GradeValue]
+
+
+class PanelReport(ContractModel):
+    quorum: int
+    agreement: float
+    judges: list[JudgeReport]
+    votes: list[VoteReport]
+
+
 class EvaluationResult(ContractModel):
     mode: Literal["live"] = "live"
     model: Model
     grades: list[Grade]
+    panel: PanelReport | None = None

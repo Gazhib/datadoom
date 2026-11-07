@@ -1,0 +1,64 @@
+{
+  "request": {
+    "conversation": {
+      "key": "kz-bot-only",
+      "group_id": "synthetic-harness",
+      "conversation_id": "kz-bot-only",
+      "language": "KZ",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "bot",
+          "text": "Сәлеметсіз бе! Менің атым Алия."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "client",
+          "text": "Бүгін кеңсе сағат нешеде ашылады?"
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "operator",
+          "text": "Кеңсе сағат тоғызда ашылады."
+        },
+        {
+          "id": "t4",
+          "timestamp": "2026-11-01T09:00:08+00:00",
+          "speaker": "system",
+          "text": "Чат аяқталды."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C01",
+          "label": "Установление контакта",
+          "instruction": "Yes if the operator greets in the client's language and introduces themselves in the first response.",
+          "kind": "binary",
+          "weight": 10,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Начало и понимание запроса"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C01": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t1",
+        "t3"
+      ]
+    }
+  }
+}

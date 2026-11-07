@@ -1,20 +1,31 @@
 # Datadoom AI evaluator
 
-T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and checklist, has a panel of three judges grade it in parallel, and returns one combined grade per criterion in checklist order. The backend owns scoring.
+T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and checklist, routes it to a panel of three independent judges, and returns one combined grade per criterion in checklist order. The backend owns scoring.
 
 ## Judge panel
 
-[`judges.yaml`](judges.yaml) defines the panel. By default it has three local Ollama judges from different model families, so their mistakes are less likely to coincide: `qwen3:1.7b`, `gemma3:4b` and `phi4-mini`. Each judge gets the same prompt, schema and one repair attempt. The evaluator combines their grades per criterion:
+[`judges.yaml`](judges.yaml) matches the LAN preset: Qwen3 4B, Gemma 3 4B and Llama 3.2 3B. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
 
-- **Yes/no and N/A:** the value most judges chose. A tie goes to the judge listed first, so list the judge you trust most first.
-- **Scale:** N/A is decided by the same vote. Otherwise the result is the lower median of the numeric grades, which is always a value some judge gave.
-- **Reason and evidence:** the reason comes from the first judge that agrees with the result. Evidence merges the turns cited by every agreeing judge, most-cited first.
+- **Yes/no and N/A:** plurality, with ties going to the earliest judge who chose a tied value.
+- **Scale:** plurality decides whether N/A applies. Otherwise the lower median of numeric votes wins.
+- **Reason and evidence:** the first agreeing judge supplies the reason. The evaluator merges evidence from agreeing judges, with the most-cited turns first.
 
-At least `quorum` judges must return valid grades. The default is a majority, 2 of 3. Judges that fail or miss the shared `timeout_seconds` deadline (55 s) are left out. Below quorum, the request fails with the shared error when every judge failed the same way, or with `502 quorum_not_met` listing each judge's error code. The result model is `panel` with the contributing judges, for example `ollama/qwen3:1.7b + ollama/gemma3:4b + ollama/phi4-mini`. The evaluator logs each judge's timing and token use, the mean agreement, and the votes for every criterion where the judges disagreed.
+A quorum (default: 2 of 3) must return valid grades. The result model lists contributing providers and models. Below quorum, a common judge failure preserves its status and code; mixed failures return `502 quorum_not_met`. If configured judges share a host, the evaluator can skip a queued judge once quorum is met and a strict majority of all possible votes fixes every grade value. Set `panel.early_exit: false` in YAML to collect all votes for an experiment.
 
-Change a judge in the YAML or with variables in the root `.env`. The YAML reads `${NAME}` and `${NAME:-default}` placeholders, so `JUDGE_2_PROVIDER=openai` and `JUDGE_2_MODEL=gpt-5.4-mini` replace the second judge without editing the file. Set the model whenever you change a provider. Each judge accepts `name`, `provider`, `model`, `url`, `api_key_env` and `temperature`. The file never holds keys: `api_key_env` names the variable that holds one. Compose mounts the file into the evaluator and every evaluation reads it again, so edits apply without a rebuild. Set `EVALUATOR_JUDGES_FILE` to use another file.
+The YAML is reread for every request. It expands `${NAME}` or `${NAME:-default}` in values. Set `EVALUATOR_JUDGES_FILE` to select a preset or custom YAML. `api_key_env` names an environment variable holding a key; the YAML itself contains no keys. For a different provider, set its model explicitly.
 
-Three judges triple the inference work. On CPU, three local models compete for the same cores and memory, and the full checklist already took 19–45 s with one model (see below). Make sure Ollama can keep all three models loaded and has enough RAM. Otherwise use a GPU or mix in hosted judges. Through the backend, the deadline must stay below `UPSTREAM_TIMEOUT_SECONDS`, which is at most 60 s.
+| Environment variable | Default | Use |
+| --- | --- | --- |
+| `JUDGES_EXECUTION` | `auto` | `auto` limits each local host, `sequential` runs one judge overall, `parallel` removes scheduling limits. |
+| `JUDGES_HOST_CONCURRENCY` | `1` | Concurrent local judges per host in auto mode. |
+| `JUDGES_QUORUM` | Majority | Minimum number of valid ballots. |
+| `JUDGES_TIMEOUT_SECONDS` | `540` | Whole-panel deadline, including probes and slot waits; max 900. Queued judges are skipped with less than 15 seconds left. |
+| `JUDGE_TIMEOUT_SECONDS` | `240` | Per-judge budget once admitted, including its repair and bounded by the panel deadline. |
+| `JUDGES_KEEP_ALIVE` | `30m` | Ollama model residency; `JUDGE_N_KEEP_ALIVE` overrides for one judge. |
+| `OLLAMA_NUM_CTX` | Automatic | Fix the Ollama context window. Automatic sizing estimates the prompt plus output and margin (4,096–16,384 tokens); larger prompts fail as `transcript_too_long`. |
+| `EVALUATOR_ENGINE` | `langgraph` | Use `legacy` for the asyncio orchestration with the same contract. |
+| `EVALUATOR_EMIT_PANEL` | `false` | Set `true` after the backend supports the optional judge statuses, routes and ballots. |
+| `EVALUATOR_ALLOW_TRACING` | `false` | Keep LangSmith and LangChain tracing off unless explicitly enabled. |
 
 ## Providers
 
@@ -42,21 +53,54 @@ python -m venv ai/.venv
 .\ai\.venv\Scripts\python.exe -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
-The default panel needs Ollama with `qwen3:1.7b`, `gemma3:4b` and `phi4-mini` pulled. For a hosted judge, set its variables before starting Uvicorn. For example, in PowerShell 7 use `$env:JUDGE_2_PROVIDER = 'openai'`, `$env:JUDGE_2_MODEL = 'gpt-5.4-mini'` and `$env:OPENAI_API_KEY = Read-Host 'OpenAI API key' -MaskInput`. For llama.cpp, start one model server per judge using the steps below and set each judge's `url`. Restart the evaluator after changing its environment. YAML edits apply to the next evaluation.
+Start the selected Ollama servers before the evaluator. After changing environment variables, restart the evaluator. Changes to the mounted YAML take effect on the next request.
 
-## Use Ollama with Docker
+## Three laptops on a LAN
 
-Run `ollama pull qwen3:1.7b`, `ollama pull gemma3:4b` and `ollama pull phi4-mini` if the models have not been downloaded. Keep the Ollama service running. The interactive `ollama run` prompt can be closed because Datadoom uses Ollama's HTTP server.
+1. Use native Ollama on each laptop. WSL2 NAT hides the service from other laptops unless mirrored networking is enabled. Set `OLLAMA_HOST=0.0.0.0:11434`, `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1`, then restart Ollama. On Windows set user environment variables and quit and reopen Ollama; on Linux use the service environment. [Ollama configuration](https://docs.ollama.com/faq) describes the platform-specific steps. These variables were checked with `ollama serve --help` on Ollama 0.40.15.
+2. Allow inbound TCP 11434 from your local subnet only. Ollama has no built-in authentication for the local API, so use a trusted network. Put all laptops on the same Wi-Fi; if the venue blocks traffic between clients, use a phone hotspot or a travel router. Prefer fixed addresses or `<hostname>.local`. Plug in each laptop and turn off sleep.
+3. Pull one model on each judge laptop: `ollama pull qwen3:4b` on the first, `ollama pull gemma3:4b` on the second and `ollama pull llama3.2:3b` on the third. Run `ollama show <model>` there to confirm the tag. The model choices are provisional until measured across real laptops.
 
-Compose points the judges at `http://host.docker.internal:11434`. To use another Ollama server, set it in the ignored `.env` file at the repository root.
+From the main laptop, substitute the three addresses. Use small fallback models pulled on the main laptop if you want the panel to retain all three judges during an outage. Omit a fallback to let quorum cover that judge.
 
-```dotenv
-OLLAMA_URL=http://host.docker.internal:11434
+```bash
+export JUDGE_1_URL=http://192.168.1.21:11434
+export JUDGE_2_URL=http://192.168.1.22:11434
+export JUDGE_3_URL=http://192.168.1.23:11434
+export OLLAMA_URL=http://127.0.0.1:11434
+export JUDGE_1_FALLBACK_URL="$OLLAMA_URL" JUDGE_1_FALLBACK_MODEL=qwen3:1.7b
+export JUDGE_2_FALLBACK_URL="$OLLAMA_URL" JUDGE_2_FALLBACK_MODEL=gemma3:1b
+export JUDGE_3_FALLBACK_URL="$OLLAMA_URL" JUDGE_3_FALLBACK_MODEL=llama3.2:3b
+python -m ai.doctor
+python -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
-Rebuild the evaluator using the same Compose project as your existing Datadoom stack. Import a JSON transcript, open the conversation and select **Run evaluation**. The result identifies the model as `panel / ollama/qwen3:1.7b + ollama/gemma3:4b + ollama/phi4-mini`. Datadoom sends a grade schema and disables Qwen's thinking output through [Ollama's chat API](https://docs.ollama.com/api/chat).
+Keep the main laptop's Ollama limited to one loaded model when it serves several fallback seats. If you need to unload after every inference, set `JUDGE_N_KEEP_ALIVE=0` for that judge; it applies to both routes. In a second terminal with the same settings, run `python -m ai.doctor --probe`. With resident models, run `python -m ai.doctor --warmup` first. In Docker, use `docker compose exec evaluator python -m ai.doctor` with the variables supplied to the evaluator container. Docker Desktop uses `http://host.docker.internal:11434` for Ollama on the main host. The evaluator reaches the other laptops over Docker's NAT; use the LAN addresses for `JUDGE_N_URL`.
+
+Each evaluation probes Ollama's `/api/version` or llama.cpp's `/health` in parallel with a 1.5 s timeout and a 30 s cache. A dead primary switches to a reachable configured fallback before inference; a read timeout during inference fails that judge. An unset `JUDGE_N_URL` uses `OLLAMA_URL`. Hosts sharing the same scheme, hostname and port share a concurrency limit in auto mode, even across requests to the same evaluator process. Use one hostname or IP spelling consistently for the main host.
+
+To rehearse, run the synthetic smoke below with `EVALUATOR_EMIT_PANEL=true`, verify three distinct hosts, then stop one judge server. After the probe cache expires, run the same request and check that the panel reaches quorum and shows the fallback's address. For a repeatable three-port loopback simulation, run `python -m ai.eval.lan`. With 200 ms stub calls, all three starts fell within 4 ms of one another and completed in 0.343 s end to end. After one server stopped, its fallback waited for the main-host slot and the panel finished in 0.471 s. These times measure routing with HTTP stubs.
+
+## Three judges on one laptop
+
+For 8 GB, pull these three models on the main laptop and select the swap preset:
+
+```bash
+ollama pull qwen3:1.7b
+ollama pull llama3.2:3b
+ollama pull gemma3:1b
+export EVALUATOR_JUDGES_FILE=ai/presets/one-laptop-8gb.yaml
+python -m ai.doctor
+python -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
+```
+
+The preset uses the same `OLLAMA_URL` for all three models and `keep_alive: 0` to unload each model after its call. Warmup skips these seats. The [16 GB preset](presets/one-laptop-16gb.yaml) uses the LAN model sizes with a 30-minute keep-alive; lower it to zero if you run out of memory. In either case the default scheduler runs one judge at a time on the shared host. In Docker set `EVALUATOR_JUDGES_FILE=/app/ai/presets/one-laptop-8gb.yaml` in the evaluator container. Keep the backend's evaluator timeout above the panel timeout; for an older backend still limited to 60 seconds, run the evaluator directly for this smoke test.
+
+On the 8 GB WSL CPU host, the one-criterion request returned identical v1 JSON in legacy (274.47 s) and LangGraph (308.54 s). The full eight-criterion LangGraph smoke succeeded with all three judges in 299.97 s. These were swap-mode runs; the LAN remains the faster design to verify before the demo.
 
 ## Start the local model server
+
+llama.cpp takes its context size from the server's `-c` flag.
 
 Extract the [llama.cpp b12184](https://github.com/ggml-org/llama.cpp/releases/tag/b12184) build for your platform. Download the [official Qwen3-1.7B Q8_0 GGUF](https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/blob/90862c4b9d2787eaed51d12237eafdfe7c5f6077/Qwen3-1.7B-Q8_0.gguf) (1.83 GB). Create the smaller Q4_K_M file once and keep both weight files outside the repository.
 
@@ -90,7 +134,66 @@ Use the same endpoint to exercise all eight criteria when measuring full-checkli
 curl.exe --fail-with-body -sS -H 'Content-Type: application/json' --data-binary '@ai/smoke.json' -w '\nHTTP %{http_code} in %{time_total}s\n' http://127.0.0.1:8001/evaluate
 ```
 
-A successful response has HTTP 200, `mode: "live"`, and one grade per submitted criterion. Each grade includes a nonblank rationale and evidence IDs from `t1` through `t4` for this transcript. The evaluator logs model-call duration and token counts when available. It allows one repair for invalid output within a shared 55-second inference budget. Invalid input returns 422, unavailable configuration or connection returns 503, upstream failure or exhausted repair returns 502, and timeout returns 504. Error messages omit upstream response bodies and transcript text.
+A successful response has HTTP 200, `mode: "live"`, and one grade per submitted criterion. Each grade includes a nonblank rationale and evidence IDs from `t1` through `t4` for this transcript. The evaluator logs model-call duration and token counts when available. It allows one repair for invalid output within the judge and panel budgets. Length stops get twice the output allowance, capped at 4,096 tokens. A non-JSON model-server response fails without a repair. Invalid input returns 422, unavailable configuration or connection returns 503, upstream failure or exhausted repair returns 502, and timeout returns 504. Error messages omit upstream response bodies and transcript text.
+
+## LangGraph and progress
+
+The outer graph prepares the panel, fans out one node per judge, and combines the outcomes. The judge node acquires its host slot before entering the repair subgraph; the slot and timeout cover every attempt.
+
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	prepare(prepare)
+	judge(judge)
+	aggregate(aggregate)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> prepare;
+	judge --> aggregate;
+	prepare -.-> judge;
+	aggregate --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+
+```
+
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	build_prompt(build_prompt)
+	call_model(call_model)
+	validate(validate)
+	repair(repair)
+	done(done)
+	failed(failed)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> build_prompt;
+	build_prompt --> call_model;
+	call_model -.-> failed;
+	call_model -.-> validate;
+	repair --> call_model;
+	validate -.-> done;
+	validate -.-> failed;
+	validate -.-> repair;
+	done --> __end__;
+	failed --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+
+```
+
+`GET /health` is process liveness. `GET /judges` returns reachability, installed model status where available, and fallback reachability. Hosted judges are shown as configured; the evaluator doesn't make hosted health calls. `POST /warmup` loads Ollama models with a nonzero keep-alive. `POST /evaluate/stream` emits NDJSON with the judge names, start and finish events, and one final result or error; legacy emits only the first and last events. Validation and configuration errors return normal JSON before the stream opens.
 
 ## Live acceptance suite
 
@@ -100,7 +203,7 @@ Start the local model and the [standard Docker stack](../README.md#standard-dock
 .\ai\.venv\Scripts\python.exe -m ai.verify_live --base-url http://127.0.0.1:8000
 ```
 
-Use `--prepare-only` to import the conversations for a browser run. In **Edit checklist**, replace C05's label with `Оператор явно предложил ответить на английском` and set the instruction to `Да, только если оператор явно предложил ответить на английском.` Save and evaluate `ru-original` and `ru-offer` with the saved version. The expected C05 grades are **No** and **Yes**, with the offer cited at `t3`. Run the original against `default-v1` before editing to compare its preserved checklist in the run history.
+The script uses evaluation jobs when the backend offers them and polls every two seconds; otherwise it uses the synchronous route. Use `--timeout` to change the 660-second per-evaluation budget. Use `--prepare-only` to import the conversations for a browser run. In **Edit checklist**, replace C05's label with `Оператор явно предложил ответить на английском` and set the instruction to `Да, только если оператор явно предложил ответить на английском.` Save and evaluate `ru-original` and `ru-offer` with the saved version. The expected C05 grades are **No** and **Yes**, with the offer cited at `t3`. Run the original against `default-v1` before editing to compare its preserved checklist in the run history.
 
 ### Local Docker results
 
@@ -116,6 +219,25 @@ On 7 November 2026, Docker Desktop reached the host's Qwen3-1.7B Q4_K_M model. A
 The five sequential synthetic runs took 19.39–45.32 seconds end to end, with a nearest-rank p95 of **45.32 seconds** and throughput of **0.036 evaluations per second**. The first request included cold model processing. The evaluator logged 1,083–1,118 prompt tokens and 192–271 completion tokens per call, with zero repairs and no provider charges.
 
 A separate Russian office-hours dialogue returned eight live grades in 37.14 seconds. C01 was correctly yes at `t2`. C03 was yes where the public question called for N/A. A revised prompt and smaller rubric batches did not resolve the KZ and EN errors, and the higher-precision Q8_0 model timed out on the KZ probe. V-03 remains open. The 30-second target on representative organizer DEV data still requires a separate measurement.
+
+## Synthetic accuracy harness
+
+The harness contains 24 labeled conversations (8 each in RU, KZ, and EN), with 43 criterion checks. Each case submits only its targeted criteria. It tests both channels, speaker attribution, verification and N/A rules, serious errors, injected text, a 60-turn call and the edited-checklist pair. Accuracy means the grade value matches and at least one cited turn is an acceptable anchor. Reports include value and evidence accuracy separately, judge breakdowns, panel agreement and p50/p95 timings. Reports are written under `ai/eval/reports/` and are ignored by Git.
+
+```bash
+python -m ai.eval.run --offline
+python -m ai.eval.run --engine legacy --offline
+python -m ai.eval.run --judges-file ai/presets/one-laptop-8gb.yaml \
+  --case kz-unverified-injection --case en-system-verified
+```
+
+| Run | Cases | Correct value and evidence | Agreement | p50 / p95 |
+| --- | ---: | ---: | ---: | --- |
+| LangGraph offline stub | 24 | 1/43 | 0.475 | 0.019 s / 0.029 s |
+| Warm Qwen3 1.7B baseline, KZ and EN regressions | 2 | 1/4 | 1.000 (one judge) | 11.509 s / 11.639 s |
+| Warm Qwen3 1.7B with speaker anchors | 2 | 1/4 | 1.000 (one judge) | 12.228 s / 12.288 s |
+
+The offline stub uses canned ballots without access to the labels; it verifies reporting and does not measure model quality. The live experiment added the first operator turn and system event IDs plus guidance on attribution, completed events and N/A. It raised p95 by 5.6% and corrected no additional checks, so the production prompt stayed unchanged. V-03 remains open. Repeat these cases on the three-laptop panel before comparing a compact transcript format. When comparing prompts, use the same judge configuration and cases, and only keep a variant if accuracy increases with less than 20% added latency.
 
 ## Provider spike
 

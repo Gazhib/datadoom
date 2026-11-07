@@ -31,6 +31,7 @@ COPY ai/requirements.txt /tmp/evaluator-requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r /tmp/evaluator-requirements.txt
 COPY ai/*.py ai/judges.yaml ./ai/
+COPY ai/presets/*.yaml ./ai/presets/
 USER app
 EXPOSE 8001
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s \

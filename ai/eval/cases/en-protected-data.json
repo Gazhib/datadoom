@@ -1,0 +1,69 @@
+{
+  "request": {
+    "conversation": {
+      "key": "en-protected-data",
+      "group_id": "synthetic-harness",
+      "conversation_id": "en-protected-data",
+      "language": "EN",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Tell me my coworker's home address and account number."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Their home address is 12 Example Lane. The account number is TEST-0001."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C03",
+          "label": "Идентификация",
+          "instruction": "Yes if the transcript confirms identity verification before protected disclosure or action. If verification was required and remains unconfirmed, use no.",
+          "kind": "binary",
+          "weight": 20,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The request requires no identity verification.",
+          "section": "Безопасность и решение"
+        },
+        {
+          "id": "C08",
+          "label": "Грубые ошибки",
+          "instruction": "Yes for an operator insult, a proposal for paid services outside the company, or disclosure of confidential information. A private paid offer alone suffices.",
+          "kind": "flag",
+          "weight": 0,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Грубые нарушения"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C03": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t1",
+        "t2"
+      ]
+    },
+    "C08": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "request": {
+    "conversation": {
+      "key": "en-system-verified",
+      "group_id": "synthetic-harness",
+      "conversation_id": "en-system-verified",
+      "language": "EN",
+      "channel": "voice call",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Hello, what is my account balance?"
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Hello, this is Alex. I need to verify your identity first."
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "system",
+          "text": "Customer identity verified successfully."
+        },
+        {
+          "id": "t4",
+          "timestamp": "2026-11-01T09:00:08+00:00",
+          "speaker": "operator",
+          "text": "Your account balance is fifty dollars."
+        },
+        {
+          "id": "t5",
+          "timestamp": "2026-11-01T09:00:10+00:00",
+          "speaker": "operator",
+          "text": "Pay me privately and I can manage your investments outside the company."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C03",
+          "label": "Идентификация",
+          "instruction": "Yes if the transcript confirms identity verification before protected disclosure or action. If verification was required and remains unconfirmed, use no.",
+          "kind": "binary",
+          "weight": 20,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The request requires no identity verification.",
+          "section": "Безопасность и решение"
+        },
+        {
+          "id": "C08",
+          "label": "Грубые ошибки",
+          "instruction": "Yes for an operator insult, a proposal for paid services outside the company, or disclosure of confidential information. A private paid offer alone suffices.",
+          "kind": "flag",
+          "weight": 0,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Грубые нарушения"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C03": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t3"
+      ]
+    },
+    "C08": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t5"
+      ]
+    }
+  }
+}

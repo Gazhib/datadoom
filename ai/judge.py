@@ -2,7 +2,7 @@
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 
 import httpx
@@ -149,9 +149,9 @@ async def complete(
     try:
         completion = provider.read_completion(response.json())
     except (KeyError, IndexError, AttributeError, TypeError, ValueError):
-        raise ValueError(INCOMPLETE_OUTPUT) from None
+        raise EvaluationError(502, "provider_error", "The model server returned an invalid response.") from None
     if not isinstance(completion.model, str) or not completion.model.strip():
-        raise ValueError(INCOMPLETE_OUTPUT)
+        raise EvaluationError(502, "provider_error", "The model server returned an invalid response.")
     if provider.name == "llama.cpp" and completion.model != provider.model:
         raise EvaluationError(502, "provider_error", "The model server returned an unexpected model.")
     logger.info(
@@ -169,19 +169,67 @@ async def complete(
     return completion
 
 
+@dataclass(frozen=True)
+class Attempt:
+    messages: list[dict[str, str]]
+    schema: dict
+    max_tokens: int
+    number: int = 1
+
+
+class OutputTruncated(ValueError):
+    pass
+
+
+def build_attempt(provider: Provider, data: EvaluationRequest) -> Attempt:
+    minimum = 1024 if provider.name in {"openai", "gemini"} else 256
+    return Attempt(
+        build_messages(data, local=provider.local),
+        build_response_schema(data, local=provider.local),
+        min(4096, max(minimum, len(data.checklist.criteria) * 110)),
+    )
+
+
+async def call_model(client: httpx.AsyncClient, provider: Provider, attempt: Attempt, judge: str) -> Completion:
+    payload = provider.payload(attempt.messages, attempt.schema, attempt.max_tokens)
+    return await complete(client, provider, payload, judge, attempt.number)
+
+
+def validate_attempt(completion: Completion, data: EvaluationRequest) -> Verdict:
+    if completion.truncated:
+        raise OutputTruncated(INCOMPLETE_OUTPUT)
+    if not isinstance(completion.content, str):
+        raise ValueError(INCOMPLETE_OUTPUT)
+    return Verdict(completion.model, validate_grades(completion.content, data))
+
+
+def log_invalid(judge: str, provider: Provider, attempt: Attempt, error: ValueError) -> None:
+    logger.warning(
+        "judge=%s provider=%s attempt=%d code=%s",
+        judge, provider.name, attempt.number,
+        "output_truncated" if isinstance(error, OutputTruncated) else "invalid_grades",
+    )
+
+
+def repair_attempt(attempt: Attempt, error: ValueError) -> Attempt:
+    if isinstance(error, OutputTruncated):
+        return replace(attempt, max_tokens=min(4096, attempt.max_tokens * 2), number=2)
+    return replace(attempt, messages=with_repair_note(attempt.messages, error), number=2)
+
+
+def invalid_grades() -> EvaluationError:
+    return EvaluationError(502, "invalid_grades", "The model returned invalid grades or evidence.")
+
+
 async def grade(client: httpx.AsyncClient, provider: Provider, data: EvaluationRequest, judge: str) -> Verdict:
-    """Grade with one provider. HTTP failures end the attempt; invalid output gets one repair."""
-    messages = build_messages(data, local=provider.local)
-    schema = build_response_schema(data, local=provider.local)
-    max_tokens = min(4096, max(256, len(data.checklist.criteria) * 110))
-    for attempt in (1, 2):
+    """HTTP and envelope failures end the attempt; invalid grades get one repair."""
+    attempt = build_attempt(provider, data)
+    while True:
+        completion = await call_model(client, provider, attempt, judge)
         try:
-            payload = provider.payload(messages, schema, max_tokens)
-            completion = await complete(client, provider, payload, judge, attempt)
-            if not isinstance(completion.content, str):
-                raise ValueError(INCOMPLETE_OUTPUT)
-            return Verdict(completion.model, validate_grades(completion.content, data))
+            return validate_attempt(completion, data)
         except ValueError as error:
-            logger.warning("judge=%s provider=%s attempt=%d returned invalid grades", judge, provider.name, attempt)
-            messages = with_repair_note(messages, error)
-    raise EvaluationError(502, "invalid_grades", "The model returned invalid grades or evidence.")
+            log_invalid(judge, provider, attempt, error)
+            if attempt.number == 2:
+                raise invalid_grades() from None
+            attempt = repair_attempt(attempt, error)

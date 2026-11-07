@@ -1,7 +1,8 @@
 import unittest
+from itertools import product
 
 from ai.contracts import Criterion, Grade
-from ai.panel import Ballot, decide
+from ai.consensus import Ballot, consensus, decide, guaranteed_value
 
 
 def criterion(kind="binary", *, allow_na=False) -> Criterion:
@@ -77,3 +78,27 @@ class ConsensusTests(unittest.TestCase):
         decision = decide(criterion(), ballots(("yes", ["t2"]), ("yes", ["t2"]), ("yes", ["t2", "t4"])))
         self.assertEqual(decision.agreement, 1)
         self.assertEqual(decision.grade.evidence_turn_ids, ["t2", "t4"])
+
+
+class EarlyExitTests(unittest.TestCase):
+    def test_guarantee_cannot_be_overturned_by_any_remaining_votes(self):
+        for row in (criterion(), criterion(allow_na=True), criterion("scale", allow_na=True)):
+            values = row.allowed_values()
+            for known in product(values, repeat=3):
+                for left in (1, 2):
+                    if not guaranteed_value(known, left):
+                        continue
+                    # A remaining judge may fail, vote for any allowed value, or have
+                    # higher YAML priority than the votes that already finished.
+                    expected = consensus(row, known)
+                    for count in range(left + 1):
+                        for future in product(values, repeat=count):
+                            self.assertEqual(consensus(row, future + known), expected)
+                            self.assertEqual(consensus(row, known + future), expected)
+
+    def test_ties_and_movable_scale_medians_do_not_skip(self):
+        for known in (("yes", "no"), ("na", "yes"), (5, 15)):
+            self.assertFalse(guaranteed_value(known, 1))
+        self.assertFalse(guaranteed_value((5, 5), 2))
+        self.assertTrue(guaranteed_value((5, 5), 1))
+        self.assertTrue(guaranteed_value(("na", "na"), 1))

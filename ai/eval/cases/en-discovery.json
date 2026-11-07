@@ -1,0 +1,87 @@
+{
+  "request": {
+    "conversation": {
+      "key": "en-discovery",
+      "group_id": "synthetic-harness",
+      "conversation_id": "en-discovery",
+      "language": "EN",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "I cannot download my statement."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Are you using the app or the website, and which month do you need?"
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "client",
+          "text": "The app, for October."
+        },
+        {
+          "id": "t4",
+          "timestamp": "2026-11-01T09:00:08+00:00",
+          "speaker": "operator",
+          "text": "Open Documents, choose October, then tap Download."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C02",
+          "label": "Выявление потребности",
+          "instruction": "Yes if the operator uses known details and clarifies missing information before answering.",
+          "kind": "binary",
+          "weight": 15,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The customer provided enough information at the start.",
+          "section": "Начало и понимание запроса"
+        },
+        {
+          "id": "C04",
+          "label": "Корректная и полная консультация",
+          "instruction": "20: all material questions answered or a correct next step given. 15: main issue resolved with a minor omission. 10: material issue still open. 5: generic guidance without an actionable next step. 0: no substantive answer or a key error.",
+          "kind": "scale",
+          "weight": 20,
+          "scale": [
+            0,
+            5,
+            10,
+            15,
+            20
+          ],
+          "allow_na": true,
+          "na_rule": "The chat ended before the client made a request.",
+          "section": "Безопасность и решение"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C02": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2",
+        "t3"
+      ]
+    },
+    "C04": {
+      "value": 20,
+      "evidence_turn_ids": [
+        "t4"
+      ]
+    }
+  }
+}

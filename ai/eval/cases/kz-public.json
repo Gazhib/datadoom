@@ -1,0 +1,75 @@
+{
+  "request": {
+    "conversation": {
+      "key": "kz-public",
+      "group_id": "synthetic-harness",
+      "conversation_id": "kz-public",
+      "language": "KZ",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Мобильді қолданбаны қайдан жүктеймін?"
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Қолданбаны ресми сайттағы «Жүктеу» бөлімінен жүктеңіз."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C03",
+          "label": "Идентификация",
+          "instruction": "Yes if the transcript confirms identity verification before protected disclosure or action. If verification was required and remains unconfirmed, use no.",
+          "kind": "binary",
+          "weight": 20,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The request requires no identity verification.",
+          "section": "Безопасность и решение"
+        },
+        {
+          "id": "C04",
+          "label": "Корректная и полная консультация",
+          "instruction": "20: all material questions answered or a correct next step given. 15: main issue resolved with a minor omission. 10: material issue still open. 5: generic guidance without an actionable next step. 0: no substantive answer or a key error.",
+          "kind": "scale",
+          "weight": 20,
+          "scale": [
+            0,
+            5,
+            10,
+            15,
+            20
+          ],
+          "allow_na": true,
+          "na_rule": "The chat ended before the client made a request.",
+          "section": "Безопасность и решение"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C03": {
+      "value": "na",
+      "evidence_turn_ids": [
+        "t1",
+        "t2"
+      ]
+    },
+    "C04": {
+      "value": 20,
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    }
+  }
+}

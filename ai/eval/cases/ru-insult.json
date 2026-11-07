@@ -1,0 +1,68 @@
+{
+  "request": {
+    "conversation": {
+      "key": "ru-insult",
+      "group_id": "synthetic-harness",
+      "conversation_id": "ru-insult",
+      "language": "RU",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Подскажите, где скачать приложение?"
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Здравствуйте, я Алексей. Только идиот не может найти ссылку."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C05",
+          "label": "Эмпатия и клиентоориентированность",
+          "instruction": "Yes for politeness and, when the client expresses dissatisfaction or inconvenience, acknowledgment of the specific problem.",
+          "kind": "binary",
+          "weight": 15,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Ведение и завершение диалога"
+        },
+        {
+          "id": "C08",
+          "label": "Грубые ошибки",
+          "instruction": "Yes for an operator insult, a proposal for paid services outside the company, or disclosure of confidential information. A private paid offer alone suffices.",
+          "kind": "flag",
+          "weight": 0,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Грубые нарушения"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C05": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    },
+    "C08": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+# One laptop: all judges share OLLAMA_URL and run in YAML order in auto mode.
+panel:
+  quorum: ${JUDGES_QUORUM}
+  execution: ${JUDGES_EXECUTION:-auto}
+  host_concurrency: ${JUDGES_HOST_CONCURRENCY:-1}
+  timeout_seconds: ${JUDGES_TIMEOUT_SECONDS:-540}
+  judge_timeout_seconds: ${JUDGE_TIMEOUT_SECONDS:-240}
+  keep_alive: ${JUDGES_KEEP_ALIVE:-30m}
+
+judges:
+  - name: judge-1
+    provider: ollama
+    model: ${JUDGE_1_MODEL:-qwen3:4b}
+    temperature: ${JUDGE_1_TEMPERATURE}
+    keep_alive: ${JUDGE_1_KEEP_ALIVE}
+  - name: judge-2
+    provider: ollama
+    model: ${JUDGE_2_MODEL:-gemma3:4b}
+    temperature: ${JUDGE_2_TEMPERATURE}
+    keep_alive: ${JUDGE_2_KEEP_ALIVE}
+  - name: judge-3
+    provider: ollama
+    model: ${JUDGE_3_MODEL:-llama3.2:3b}
+    temperature: ${JUDGE_3_TEMPERATURE}
+    keep_alive: ${JUDGE_3_KEEP_ALIVE}

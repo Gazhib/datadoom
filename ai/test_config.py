@@ -30,8 +30,8 @@ class JudgeConfigTests(unittest.TestCase):
         config = load_judges(DEFAULT_JUDGES_FILE, {})
         self.assertEqual([judge.name for judge in config.judges], ["judge-1", "judge-2", "judge-3"])
         self.assertEqual({judge.provider for judge in config.judges}, {"ollama"})
-        self.assertEqual([judge.model for judge in config.judges], ["qwen3:1.7b", "gemma3:4b", "phi4-mini"])
-        self.assertEqual((config.quorum, config.panel.timeout_seconds), (2, 55))
+        self.assertEqual([judge.model for judge in config.judges], ["qwen3:4b", "gemma3:4b", "llama3.2:3b"])
+        self.assertEqual((config.quorum, config.panel.timeout_seconds), (2, 540))
         self.assertTrue(all(judge.url is None and judge.temperature is None for judge in config.judges))
 
     def test_environment_overrides_one_judge_without_editing_the_file(self):
