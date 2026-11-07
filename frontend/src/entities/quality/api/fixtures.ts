@@ -97,3 +97,12 @@ export const gradesByFixture: Record<string, Grade[]> = {
   'demo-002': kazakhChatGrades,
   'demo-003': englishCallGrades,
 }
+
+// Cue points measured in the bundled recording. Transcript timestamps are source data.
+export function demoRecordingOffsets(conversation: Conversation): ReadonlyMap<string, number> | undefined {
+  const demo = demoConversations[2]
+  if (conversation.key !== demo.key || conversation.audio_url !== syntheticCall || conversation.turns.length !== demo.turns.length
+    || !conversation.turns.every((turn, index) => turn.id === demo.turns[index].id
+      && turn.speaker === demo.turns[index].speaker && turn.timestamp === demo.turns[index].timestamp)) return undefined
+  return new Map([['t1', 0], ['t2', 4.3], ['t3', 7.5], ['t4', 12.6], ['t5', 15.1]])
+}

@@ -1,41 +1,43 @@
 :root {
   font-family: "Onest Variable", "Segoe UI", system-ui, sans-serif;
-  color: #272923;
-  background: #f7f7f2;
+  color: #17231d;
+  background: #f6f8f7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --ink: #272923;
-  --muted: #75766d;
-  --line: #e5e5dc;
-  --paper: #fffefa;
-  --rail: #292d27;
-  --accent: #a84327;
-  --accent-hover: #8b351e;
-  --accent-soft: #f6e9df;
-  --surface: #f2f2eb;
-  --success: #44654e;
+  --ink: #17231d;
+  --muted: #52635a;
+  --line: #dce5de;
+  --input-line: #bfcfc4;
+  --paper: #fff;
+  --rail: #073c2b;
+  --accent: #19713d;
+  --accent-hover: #125732;
+  --accent-soft: #e9f5ec;
+  --surface: #f3f7f4;
+  --score: #419c46;
+  --evidence: #fff2d8;
+  --radius: 10px;
   --mono: "Cascadia Code", Consolas, monospace;
-  --rail-width: 76px;
-  --header-height: 76px;
-  --gutter: clamp(24px, 3vw, 52px);
+  --rail-width: 174px;
+  --gutter: clamp(16px, 2vw, 34px);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-height) + 20px); }
-body { min-width: 360px; margin: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, summary, select { cursor: pointer; }
 button:disabled, select:disabled { cursor: default; opacity: .5; }
 a { color: inherit; }
 h1, h2, h3, h4, p, ol, ul, dl, dd { margin: 0; }
-::selection { color: #672d1c; background: #ecd3bc; }
+::selection { color: #103d27; background: #cfe9d7; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .sr-only, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip-link { position: fixed; z-index: 10; top: 12px; left: 12px; padding: 12px 18px; background: var(--paper); border: 1px solid var(--accent); border-radius: 6px; }
 
 @media (max-width: 760px) {
-  :root { --header-height: 64px; --rail-width: 0px; --gutter: 20px; }
+  :root { --rail-width: 0px; --gutter: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
