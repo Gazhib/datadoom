@@ -1,6 +1,6 @@
 # Datadoom · Conversation Quality Analytics
 
-Build a hackathon prototype for a QA analyst and a reviewer. The analyst imports a dialogue, selects a saved checklist, runs an evaluation and can jump from each grade to its evidence. The reviewer resolves an appeal with a reason and can inspect the original and final scores. A judge can replace a criterion in the UI and apply the saved version to a previously unseen dialogue.
+Build an AI-powered hackathon prototype for a QA analyst and a reviewer. The analyst imports a dialogue, selects a saved checklist, runs an AI evaluation and can jump from each grade to its evidence. The reviewer resolves an appeal with a reason and can inspect the original and final scores. A judge can replace a criterion in the UI and apply the saved version to a previously unseen dialogue.
 
 ## Start here · three independent handoffs
 
@@ -8,7 +8,7 @@ Give each agent this file and the same initial repository snapshot. Each works o
 
 | Send to | Paste into that agent's session | Standalone run |
 | --- | --- | --- |
-| AI Engineer | Implement **T-001–T-002** in the existing `ml/` directory. Integrate one LLM provider, build the prompt from the active checklist, validate structured grades and evidence, and deliver a small evaluation suite and launch notes. | Serve on `127.0.0.1:8001`. POST `{conversation, checklist}` with the synthetic fixture directly to `/evaluate`. |
+| AI Engineer | Implement **T-001–T-002** in `ai/`. Integrate one LLM provider, build the prompt from the active checklist, validate structured grades and evidence, and deliver a small evaluation suite and launch notes. | Serve on `127.0.0.1:8001`. POST `{conversation, checklist}` with the synthetic fixture directly to `/evaluate`. |
 | Backend agent | Implement **T-003–T-005** in `backend/`. Use the public and evaluator contracts in `requirements.md`. Deliver persistence, ingestion, scoring, appeals and the control-run command. Use a local evaluator stub for your tests. | Serve on `127.0.0.1:8000`. Run API checks against your own HTTP evaluator stub. |
 | Frontend agent | Implement **T-006–T-007** in `frontend/`. Use the existing Vite starter and the public contract and fixtures in `requirements.md`. Deliver the full analyst and reviewer flow with an explicit synthetic mock mode and role-specific launch notes. | Run the frontend locally in mock mode. Use the same UI and data shapes as live mode. |
 

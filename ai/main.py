@@ -156,12 +156,11 @@ async def evaluate(
                     grades = validate_grades(completion.content, data)
                 except ValueError as error:
                     logger.warning("provider=%s attempt=%d returned invalid grades", provider.name, attempt)
-                    if attempt == 2:
-                        raise EvaluationError(
-                            502, "invalid_grades", "The model returned invalid grades or evidence."
-                        ) from None
-                    messages[0]["content"] += f"\nPrevious output failed validation. {error}"
+                    if attempt == 1:
+                        messages[0]["content"] += f"\nPrevious output failed validation. {error}"
                 else:
                     return EvaluationResult(model=Model(provider=provider.name, model=completion.model), grades=grades)
     except TimeoutError:
         raise EvaluationError(504, "provider_timeout", "Model inference timed out.") from None
+
+    raise EvaluationError(502, "invalid_grades", "The model returned invalid grades or evidence.") from None

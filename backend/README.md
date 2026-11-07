@@ -15,7 +15,7 @@ uv run --project backend --env-file backend/.env uvicorn backend.main:app --host
 
 The backend listens at `http://127.0.0.1:8000`. Interactive API docs are at `/docs`;
 `GET /api/health` returns `{"status":"ok"}` even if the evaluator is unavailable.
-The ML teammate's evaluator must serve `POST /evaluate`, normally on port 8001.
+The AI evaluator must serve `POST /evaluate`, normally on port 8001.
 The backend sends the complete selected checklist and conversation on every run.
 
 | Variable | Default / purpose |
@@ -66,7 +66,7 @@ provided in backend configuration. When available, the expected DEV target is
 65 records (60 chats / 5 calls; 35 RU / 15 KZ / 15 EN). Check the actual response
 for control-group size; do not assume DEV counts apply to control data.
 
-## Synthetic rehearsal without ML
+## Synthetic rehearsal with an evaluator stub
 
 This is a canned evaluator for the supplied synthetic fixture, not inference.
 It returns `mode: "fixture"` and `fixture / synthetic-v1` model metadata. It is
@@ -170,5 +170,5 @@ totals, arbitrary IDs, invalid grades/evidence, unavailable configuration, upstr
 outages/timeouts, decision history, and subprocess control-run resume. The live-mode
 responses in control tests are simulated using synthetic data; they do not count
 as real model inference or organizer access. The tests need permission to bind
-localhost ports. ML provider verification and frontend interaction remain their
+localhost ports. AI provider verification and frontend interaction remain their
 respective owners' tasks.
