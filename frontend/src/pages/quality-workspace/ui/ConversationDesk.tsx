@@ -51,9 +51,11 @@ export function ConversationDesk({ summary, checklists, loadingChecklists, onRun
   return <section className="desk" aria-labelledby="conversation-heading">
     <header className="desk-heading">
       <div className="conversation-heading">
-        <p className="kicker"><Icon name={summary.channel === 'voice call' ? 'phone' : 'chat'} size={14} /> {summary.channel}</p>
-        <h2 id="conversation-heading">{summary.conversation_id}</h2>
-        <div className="conversation-tags"><span>{summary.group_id}</span><span>{summary.language}</span></div>
+        <span className="conversation-icon"><Icon name={summary.channel === 'voice call' ? 'phone' : 'chat'} size={24} /></span>
+        <div className="conversation-heading-copy">
+          <h2 id="conversation-heading">{summary.conversation_id}</h2>
+          <div className="conversation-tags"><span className="conversation-channel">{summary.channel}</span><span>{summary.group_id}</span><span>{summary.language}</span></div>
+        </div>
       </div>
       <div className="run-controls">
         <label className="version-control"><span className="field-label">Checklist version</span>
@@ -69,25 +71,31 @@ export function ConversationDesk({ summary, checklists, loadingChecklists, onRun
     </header>
     {conversation.error && <div className="desk-message"><p role="alert">{conversation.error}</p><button className="button button-outline" onClick={conversation.refresh}>Retry transcript</button></div>}
     {!conversation.data && conversation.loading && <p className="desk-message" role="status">Loading transcript…</p>}
-    {conversation.data && <div className="desk-columns">
-      <Transcript conversation={conversation.data} target={target} />
-      <section className="results pane" aria-labelledby="results-heading">
-        <header className="pane-heading">
-          <div className="pane-title"><span className="panel-icon"><Icon name="activity" size={18} /></span><h2 id="results-heading">Evaluation</h2></div>
-          {runs.length > 1 && <label className="run-history">
-            <span className="sr-only">Evaluation history</span>
-            <select value={evaluation?.id ?? ''} onChange={(event) => { setRunId(event.target.value); setTarget(null) }}>
-              {runs.map((run, index) => <option value={run.id} key={run.id}>{index === 0 ? 'Latest run' : `Run ${runs.length - index}`} · {run.checklist.version_id}</option>)}
-            </select>
-          </label>}
-        </header>
-        {running && <p className="run-notice" role="status"><span className="spinner" /> Evaluating this conversation…</p>}
-        {runError && <p className="inline-error" role="alert">{runError}</p>}
-        {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>Retry history</button></div>}
-        {evaluation ? <Results evaluation={evaluation} conversation={conversation.data} onEvidence={(id) => setTarget({ id })} />
-          : history.loading ? <p className="empty-detail" role="status">Loading evaluation history…</p>
-          : !history.error && !running && <div className="empty-detail"><span className="empty-icon"><Icon name="activity" size={23} /></span><h3>No evaluations yet</h3><p>Select a checklist version and run an evaluation to see grades and evidence for this conversation.</p></div>}
-      </section>
-    </div>}
+    {conversation.data && <>
+      <nav className="mobile-jump" aria-label="Conversation sections">
+        <a href="#transcript-heading"><Icon name="file" size={17} /> Transcript</a>
+        <a href="#results-heading"><Icon name="activity" size={17} /> Evaluation</a>
+      </nav>
+      <div className="desk-columns">
+        <Transcript conversation={conversation.data} target={target} />
+        <section className="results pane" aria-labelledby="results-heading">
+          <header className="pane-heading">
+            <div className="pane-title"><span className="panel-icon"><Icon name="activity" size={19} /></span><h2 id="results-heading" tabIndex={-1}>Evaluation</h2></div>
+            {runs.length > 1 && <label className="run-history">
+              <span className="sr-only">Evaluation history</span>
+              <select value={evaluation?.id ?? ''} onChange={(event) => { setRunId(event.target.value); setTarget(null) }}>
+                {runs.map((run, index) => <option value={run.id} key={run.id}>{index === 0 ? 'Latest run' : `Run ${runs.length - index}`} · {run.checklist.version_id}</option>)}
+              </select>
+            </label>}
+          </header>
+          {running && <p className="run-notice" role="status"><span className="spinner" /> Evaluating this conversation…</p>}
+          {runError && <p className="inline-error" role="alert">{runError}</p>}
+          {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>Retry history</button></div>}
+          {evaluation ? <Results evaluation={evaluation} conversation={conversation.data} target={target} onEvidence={setTarget} />
+            : history.loading ? <p className="empty-detail" role="status">Loading evaluation history…</p>
+            : !history.error && !running && <div className="empty-detail"><span className="empty-icon"><Icon name="activity" size={23} /></span><h3>No evaluations yet</h3><p>Select a checklist version and run an evaluation to see grades and evidence for this conversation.</p></div>}
+        </section>
+      </div>
+    </>}
   </section>
 }

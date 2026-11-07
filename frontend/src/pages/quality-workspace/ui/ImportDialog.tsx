@@ -50,7 +50,7 @@ export function ImportDialog({ onImported, disabled }: { onImported: (result: Im
   }
 
   return <>
-    <button className="button button-primary" type="button" disabled={disabled} onClick={() => dialog.current?.showModal()}>
+    <button className="button button-outline button-import" type="button" disabled={disabled} onClick={() => dialog.current?.showModal()}>
       <Icon name="upload" /> Import conversations
     </button>
     <dialog ref={dialog} className="import-dialog" aria-labelledby="import-title" onCancel={(event) => { if (busy.current) event.preventDefault() }}>

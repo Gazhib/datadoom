@@ -43,5 +43,5 @@ Vite proxies relative `/api` requests to the backend in development. To serve th
 
 - Open the RU, KZ and EN conversations and check source order, roles and timestamps. Open the recording from the EN call.
 - Evaluate `ru-001` with `default-v1`. Check two N/A rows, no serious errors, a total of 77.69 and section scores of 15.38 / 15.38, 23.08 / 30.77, 39.23 / 53.85 and an unavailable flag section.
-- Click C01 evidence and check that turn `t2` at `00:02` is focused and highlighted. Run again and select the older run from **Evaluation history**.
+- Click C01 evidence and check that turn `t2` at `00:02` is focused and highlighted. Use **Back to C01** to return to the evidence button. Run again and select the older run from **Evaluation history**.
 - Reimport `SYNTH`, upload a valid synthetic JSON file, and try an invalid file. In live mode, a failed evaluation should show the API error and preserve the previously displayed run.

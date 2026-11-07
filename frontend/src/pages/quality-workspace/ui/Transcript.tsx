@@ -3,7 +3,14 @@ import gsap from 'gsap'
 import type { Conversation } from '../../../entities/quality'
 import { Icon } from '../../../shared/ui/Icon'
 
-export type EvidenceTarget = { id: string }
+export type EvidenceTarget = { id: string; criterionId: string; origin: HTMLButtonElement }
+
+function focusEvidence(element: HTMLElement) {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  element.focus({ preventScroll: true })
+  element.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'nearest', inline: 'nearest' })
+  return reduceMotion
+}
 
 function recordingLink(url: string | null) {
   if (!url?.trim()) return null
@@ -24,10 +31,7 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
     const turn = Array.from(transcript.current.children).find((item) => item.getAttribute('data-turn') === target.id)
     if (!(turn instanceof HTMLElement)) return
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    turn.focus({ preventScroll: true })
-    turn.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'center', inline: 'nearest' })
-    if (reduceMotion) return
+    if (focusEvidence(turn)) return
 
     const context = gsap.context(() => {
       gsap.fromTo('.turn-indicator', { scaleY: 0.25, opacity: 0.4 }, { scaleY: 1, opacity: 1, duration: 0.32, ease: 'power2.out' })
@@ -37,7 +41,7 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
 
   return <section className="transcript pane" aria-labelledby="transcript-heading">
     <header className="pane-heading">
-      <div className="pane-title"><span className="panel-icon"><Icon name="file" size={17} /></span><h2 id="transcript-heading">Transcript</h2></div>
+      <div className="pane-title"><span className="panel-icon"><Icon name="file" size={19} /></span><h2 id="transcript-heading" tabIndex={-1}>Transcript</h2></div>
       <span className="quiet-chip">{conversation.turns.length} {conversation.turns.length === 1 ? 'turn' : 'turns'}</span>
     </header>
     {conversation.channel === 'voice call' && <div className="recording-row">
@@ -53,6 +57,7 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
         <div className="turn-copy">
           <div className="turn-meta"><strong>{turn.speaker}</strong><span className="turn-id">{turn.id}</span><time>{turn.timestamp}</time></div>
           <p lang={conversation.language === 'KZ' ? 'kk' : conversation.language.toLowerCase()}>{turn.text}</p>
+          {target?.id === turn.id && <button className="evidence-return" type="button" onClick={() => focusEvidence(target.origin)}><Icon name="arrow" size={15} /> Back to {target.criterionId}</button>}
         </div>
       </li>)}
     </ol>

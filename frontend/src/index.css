@@ -1,16 +1,19 @@
 :root {
-  font-family: "Segoe UI", system-ui, sans-serif;
-  color: #1e2520;
-  background: #f4f3ee;
+  font-family: "Onest Variable", "Segoe UI", system-ui, sans-serif;
+  color: #212139;
+  background: #f5f5fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 
-  --ink: #1e2520;
-  --muted: #596258;
-  --line: #e3e6db;
-  --paper: #fffefa;
-  --lime: #d8fa81;
+  --ink: #212139;
+  --muted: #5d5d77;
+  --line: #e4e4ef;
+  --paper: #fff;
+  --rail: #191b31;
+  --violet: #6047d9;
+  --lime: #daf686;
+  --surface-shadow: 0 2px 6px #25224207;
   --mono: "Cascadia Code", Consolas, monospace;
 }
 
@@ -21,7 +24,8 @@ button, summary, select { cursor: pointer; }
 button:disabled, select:disabled { cursor: default; opacity: .55; }
 a { color: inherit; }
 h1, h2, h3, h4, p, ol, ul, dl, dd { margin: 0; }
-:focus-visible { outline: 2px solid #55762b; outline-offset: 3px; }
+:focus-visible { outline: 2px solid #7354e5; outline-offset: 3px; }
+.queue :focus-visible { outline-color: #b6a2ff; }
 .sr-only, .skip-link:not(:focus) {
   position: absolute;
   width: 1px;
