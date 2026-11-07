@@ -1,5 +1,6 @@
 **
 !ai/*.py
+!ai/judges.yaml
 !ai/requirements.txt
 ai/test_*.py
 !backend/*.py

@@ -1,16 +1,49 @@
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import httpx
 
+from .config import JudgeConfig
 from .contracts import ProviderName
 
 
-DEFAULT_LLAMA_URL = "http://127.0.0.1:8080"
-DEFAULT_LLAMA_MODEL = "Qwen3-1.7B-Q4_K_M"
-DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
-DEFAULT_OLLAMA_MODEL = "qwen3:1.7b"
+GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+@dataclass(frozen=True)
+class ProviderDefaults:
+    model: str
+    model_variable: str
+    url: str
+    url_variable: str | None
+    suffix: str
+    schemes: tuple[str, ...]
+    key_variables: tuple[str, ...] = ()
+
+
+# Judge settings win, then these provider-wide variables, then the built-in values.
+DEFAULTS: dict[ProviderName, ProviderDefaults] = {
+    "llama.cpp": ProviderDefaults(
+        "Qwen3-1.7B-Q4_K_M", "LLAMA_CPP_MODEL", "http://127.0.0.1:8080", "LLAMA_CPP_URL",
+        "/v1/chat/completions", ("http", "https"),
+    ),
+    "ollama": ProviderDefaults(
+        "qwen3:1.7b", "OLLAMA_MODEL", "http://127.0.0.1:11434", "OLLAMA_URL", "/api/chat", ("http", "https"),
+    ),
+    "openai": ProviderDefaults(
+        "gpt-5.4-mini", "OPENAI_MODEL", "https://api.openai.com/v1", None, "/chat/completions", ("https",),
+        ("OPENAI_API_KEY",),
+    ),
+    "qwen": ProviderDefaults(
+        "qwen-plus", "QWEN_MODEL", "", "QWEN_BASE_URL", "/chat/completions", ("https",), ("DASHSCOPE_API_KEY",),
+    ),
+    "gemini": ProviderDefaults(
+        "gemini-3.1-flash-lite", "GEMINI_MODEL", GEMINI_API, None, "", ("https",),
+        ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -28,6 +61,11 @@ class Provider:
     model: str
     endpoint: httpx.URL
     api_key: str = field(default="", repr=False)
+    temperature: float | None = None
+
+    @property
+    def local(self) -> bool:
+        return self.name in {"llama.cpp", "ollama"}
 
     def headers(self) -> dict[str, str]:
         if self.name == "gemini":
@@ -35,6 +73,13 @@ class Provider:
         if self.api_key:
             return {"Authorization": f"Bearer {self.api_key}"}
         return {}
+
+    def sampling(self) -> dict[str, float]:
+        # Local judges decode greedily unless configured. Hosted APIs keep their own default,
+        # since some models only accept their default temperature.
+        if self.temperature is not None:
+            return {"temperature": self.temperature}
+        return {"temperature": 0} if self.local else {}
 
     def payload(self, messages: list[dict[str, str]], schema: dict, max_tokens: int) -> dict:
         if self.name == "gemini":
@@ -46,6 +91,7 @@ class Provider:
                     "responseMimeType": "application/json",
                     "responseJsonSchema": schema,
                     "maxOutputTokens": max(1024, max_tokens),
+                    **self.sampling(),
                 },
             }
 
@@ -55,7 +101,7 @@ class Provider:
                 **payload,
                 "format": schema,
                 "think": False,
-                "options": {"temperature": 0, "num_predict": max_tokens},
+                "options": {**self.sampling(), "num_predict": max_tokens},
             }
         if self.name == "openai":
             return {
@@ -66,6 +112,7 @@ class Provider:
                 },
                 "max_completion_tokens": max(1024, max_tokens),
                 "store": False,
+                **self.sampling(),
             }
         if self.name == "qwen":
             return {
@@ -73,13 +120,14 @@ class Provider:
                 "response_format": {"type": "json_object"},
                 "enable_thinking": False,
                 "max_tokens": max_tokens,
+                **self.sampling(),
             }
         return {
             **payload,
             "response_format": {"type": "json_object", "schema": schema},
             "chat_template_kwargs": {"enable_thinking": False},
-            "temperature": 0,
             "max_tokens": max_tokens,
+            **self.sampling(),
         }
 
     def read_completion(self, response: dict) -> Completion:
@@ -133,46 +181,35 @@ def token_count(usage: object, key: str) -> int | None:
     return value if type(value) is int else None
 
 
-def configured_provider() -> Provider:
-    name = os.environ.get("EVALUATOR_PROVIDER", "llama.cpp").strip().lower()
-    if name == "llama.cpp":
-        model = model_name("LLAMA_CPP_MODEL", DEFAULT_LLAMA_MODEL)
-        base = os.environ.get("LLAMA_CPP_URL", DEFAULT_LLAMA_URL)
-        endpoint = endpoint_url(base, "/v1/chat/completions", "LLAMA_CPP_URL", ("http", "https"))
-        return Provider(name, model, endpoint)
-    if name == "ollama":
-        model = model_name("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
-        base = os.environ.get("OLLAMA_URL", DEFAULT_OLLAMA_URL)
-        endpoint = endpoint_url(base, "/api/chat", "OLLAMA_URL", ("http", "https"))
-        return Provider(name, model, endpoint)
-    if name == "openai":
-        model = model_name("OPENAI_MODEL", "gpt-5.4-mini")
-        endpoint = httpx.URL("https://api.openai.com/v1/chat/completions")
-        return Provider(name, model, endpoint, api_key("OPENAI_API_KEY"))
-    if name == "qwen":
-        model = model_name("QWEN_MODEL", "qwen-plus")
-        base = os.environ.get("QWEN_BASE_URL", "")
-        endpoint = endpoint_url(base, "/chat/completions", "QWEN_BASE_URL", ("https",))
-        return Provider(name, model, endpoint, api_key("DASHSCOPE_API_KEY"))
-    if name == "gemini":
-        model = model_name("GEMINI_MODEL", "gemini-3.1-flash-lite")
+def build_provider(judge: JudgeConfig, env: Mapping[str, str] | None = None) -> Provider:
+    env = os.environ if env is None else env
+    defaults = DEFAULTS[judge.provider]
+    model = judge.model or env.get(defaults.model_variable, "").strip() or defaults.model
+    key_variables = (judge.api_key_env,) if judge.api_key_env else defaults.key_variables
+    key = api_key(env, *key_variables) if key_variables else ""
+    endpoint = provider_endpoint(judge, defaults, model, env)
+    return Provider(judge.provider, model, endpoint, key, judge.temperature)
+
+
+def provider_endpoint(
+    judge: JudgeConfig, defaults: ProviderDefaults, model: str, env: Mapping[str, str]
+) -> httpx.URL:
+    if judge.provider == "gemini":
+        if judge.url:
+            raise ValueError("Gemini judges use the Gemini API. Remove the url setting.")
         if not re.fullmatch(r"[a-zA-Z0-9._-]+", model):
-            raise ValueError("Set GEMINI_MODEL to a model ID without a path.")
-        endpoint = httpx.URL(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent")
-        return Provider(name, model, endpoint, api_key("GEMINI_API_KEY", "GOOGLE_API_KEY"))
-    raise ValueError("Set EVALUATOR_PROVIDER to llama.cpp, ollama, openai, qwen, or gemini.")
+            raise ValueError("Set the Gemini model to a model ID without a path.")
+        return httpx.URL(f"{defaults.url}/{model}:generateContent")
+
+    variable_base = env.get(defaults.url_variable, "") if defaults.url_variable else ""
+    base = judge.url or variable_base.strip() or defaults.url
+    setting = "url" if judge.url or not defaults.url_variable else f"url or {defaults.url_variable}"
+    return endpoint_url(base, defaults.suffix, setting, defaults.schemes)
 
 
-def model_name(variable: str, default: str) -> str:
-    model = os.environ.get(variable, default).strip()
-    if not model:
-        raise ValueError(f"Set {variable} to a model ID.")
-    return model
-
-
-def api_key(*variables: str) -> str:
+def api_key(env: Mapping[str, str], *variables: str) -> str:
     for variable in variables:
-        key = os.environ.get(variable, "").strip()
+        key = env.get(variable, "").strip()
         if key:
             if not all(33 <= ord(char) <= 126 for char in key):
                 raise ValueError(f"Set {variable} to a valid API key.")
@@ -180,11 +217,11 @@ def api_key(*variables: str) -> str:
     raise ValueError(f"Set {' or '.join(variables)} for the selected provider.")
 
 
-def endpoint_url(base: str, suffix: str, variable: str, schemes: tuple[str, ...]) -> httpx.URL:
+def endpoint_url(base: str, suffix: str, setting: str, schemes: tuple[str, ...]) -> httpx.URL:
     try:
         url = httpx.URL(base.strip())
         if url.scheme not in schemes or not url.host or url.userinfo or url.query or url.fragment:
             raise ValueError
         return url.copy_with(path=f"{url.path.rstrip('/')}{suffix}")
     except (ValueError, httpx.InvalidURL):
-        raise ValueError(f"Set {variable} to a valid model server base URL.") from None
+        raise ValueError(f"Set {setting} to a valid model server base URL.") from None
