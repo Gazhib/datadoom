@@ -68,16 +68,16 @@ export JUDGE_1_URL=http://192.168.1.21:11434
 export JUDGE_2_URL=http://192.168.1.22:11434
 export JUDGE_3_URL=http://192.168.1.23:11434
 export OLLAMA_URL=http://127.0.0.1:11434
-export JUDGE_1_FALLBACK_URL="$OLLAMA_URL" JUDGE_1_FALLBACK_MODEL=qwen3:1.7b JUDGE_1_KEEP_ALIVE=0
-export JUDGE_2_FALLBACK_URL="$OLLAMA_URL" JUDGE_2_FALLBACK_MODEL=gemma3:1b JUDGE_2_KEEP_ALIVE=0
-export JUDGE_3_FALLBACK_URL="$OLLAMA_URL" JUDGE_3_FALLBACK_MODEL=llama3.2:3b JUDGE_3_KEEP_ALIVE=0
+export JUDGE_1_FALLBACK_URL="$OLLAMA_URL" JUDGE_1_FALLBACK_MODEL=qwen3:1.7b
+export JUDGE_2_FALLBACK_URL="$OLLAMA_URL" JUDGE_2_FALLBACK_MODEL=gemma3:1b
+export JUDGE_3_FALLBACK_URL="$OLLAMA_URL" JUDGE_3_FALLBACK_MODEL=llama3.2:3b
 python -m ai.doctor
 python -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
-The per-judge keep-alive overrides above put both the primary and its fallback in swap mode. Leave them unset if the main host can keep the configured fallback models resident. In a second terminal with the same settings, run `python -m ai.doctor --probe`. With resident models, run `python -m ai.doctor --warmup` first. In Docker, use `docker compose exec evaluator python -m ai.doctor` with the variables supplied to the evaluator container. Docker Desktop uses `http://host.docker.internal:11434` for Ollama on the main host. The evaluator reaches the other laptops over Docker's NAT; use the LAN addresses for `JUDGE_N_URL`.
+Keep the main laptop's Ollama limited to one loaded model when it serves several fallback seats. If you need to unload after every inference, set `JUDGE_N_KEEP_ALIVE=0` for that judge; it applies to both routes. In a second terminal with the same settings, run `python -m ai.doctor --probe`. With resident models, run `python -m ai.doctor --warmup` first. In Docker, use `docker compose exec evaluator python -m ai.doctor` with the variables supplied to the evaluator container. Docker Desktop uses `http://host.docker.internal:11434` for Ollama on the main host. The evaluator reaches the other laptops over Docker's NAT; use the LAN addresses for `JUDGE_N_URL`.
 
-Each evaluation probes Ollama's `/api/version` or llama.cpp's `/health` in parallel with a 1.5 s timeout and a 30 s cache. A dead primary switches to a reachable configured fallback before inference; a read timeout during inference fails that judge. An unset `JUDGE_N_URL` uses `OLLAMA_URL`. Hosts sharing the same scheme, hostname and port share one queue in auto mode. Use one hostname or IP spelling consistently for the main host.
+Each evaluation probes Ollama's `/api/version` or llama.cpp's `/health` in parallel with a 1.5 s timeout and a 30 s cache. A dead primary switches to a reachable configured fallback before inference; a read timeout during inference fails that judge. An unset `JUDGE_N_URL` uses `OLLAMA_URL`. Hosts sharing the same scheme, hostname and port share a concurrency limit in auto mode, even across requests to the same evaluator process. Use one hostname or IP spelling consistently for the main host.
 
 To rehearse, run the synthetic smoke below with `EVALUATOR_EMIT_PANEL=true`, verify three distinct hosts, then stop one judge server. After the probe cache expires, run the same request and check that the panel reaches quorum and shows the fallback's address. For a repeatable three-port loopback simulation, run `python -m ai.eval.lan`. With 200 ms stub calls, all three starts fell within 4 ms of one another and completed in 0.343 s end to end. After one server stopped, its fallback waited for the main-host slot and the panel finished in 0.471 s. These times measure routing with HTTP stubs.
 
@@ -95,6 +95,8 @@ python -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
 The preset uses the same `OLLAMA_URL` for all three models and `keep_alive: 0` to unload each model after its call. Warmup skips these seats. The [16 GB preset](presets/one-laptop-16gb.yaml) uses the LAN model sizes with a 30-minute keep-alive; lower it to zero if you run out of memory. In either case the default scheduler runs one judge at a time on the shared host. In Docker set `EVALUATOR_JUDGES_FILE=/app/ai/presets/one-laptop-8gb.yaml` in the evaluator container. Keep the backend's evaluator timeout above the panel timeout; for an older backend still limited to 60 seconds, run the evaluator directly for this smoke test.
+
+On the 8 GB WSL CPU host, the one-criterion request returned identical v1 JSON in legacy (274.47 s) and LangGraph (308.54 s). The full eight-criterion LangGraph smoke succeeded with all three judges in 299.97 s. These were swap-mode runs; the LAN remains the faster design to verify before the demo.
 
 ## Start the local model server
 
@@ -220,7 +222,7 @@ A separate Russian office-hours dialogue returned eight live grades in 37.14 sec
 
 ## Synthetic accuracy harness
 
-The harness contains 24 labeled conversations (8 each in RU, KZ, and EN), with 43 criterion checks. It tests both channels, speaker attribution, verification and N/A rules, serious errors, injected text, a 60-turn call and the edited-checklist pair. Accuracy means the grade value matches and at least one cited turn is an acceptable anchor. Reports include value and evidence accuracy separately, judge breakdowns, panel agreement and p50/p95 timings. Reports are written under `ai/eval/reports/` and are ignored by Git.
+The harness contains 24 labeled conversations (8 each in RU, KZ, and EN), with 43 criterion checks. Each case submits only its targeted criteria. It tests both channels, speaker attribution, verification and N/A rules, serious errors, injected text, a 60-turn call and the edited-checklist pair. Accuracy means the grade value matches and at least one cited turn is an acceptable anchor. Reports include value and evidence accuracy separately, judge breakdowns, panel agreement and p50/p95 timings. Reports are written under `ai/eval/reports/` and are ignored by Git.
 
 ```bash
 python -m ai.eval.run --offline

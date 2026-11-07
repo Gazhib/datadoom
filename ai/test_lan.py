@@ -94,6 +94,22 @@ class LanTests(EvaluatorTestCase):
                 self.assertEqual([event[0] for event in self.events], shape)
                 self.assertEqual([model for event, model, _ in self.events if event == "start"], ["m1", "m2", "m3"])
 
+    def test_simultaneous_panels_share_the_same_host_capacity(self):
+        self.hosts((11431,) * 3, early_exit=False)
+
+        async def mock_provider():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(self.handle)) as client:
+                yield client
+
+        async def exercise():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+                return await asyncio.gather(*(client.post("/evaluate", json=self.data) for _ in range(2)))
+
+        app.dependency_overrides[provider_client] = mock_provider
+        responses = asyncio.run(exercise())
+        self.assertEqual([response.status_code for response in responses], [200, 200])
+        self.assertEqual([event[0] for event in self.events], ["start", "end"] * 6)
+
     def test_early_exit_only_skips_queued_shared_host_after_quorum(self):
         self.hosts((11431,) * 3)
         reply = self.evaluate()

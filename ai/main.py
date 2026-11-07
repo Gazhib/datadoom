@@ -53,7 +53,7 @@ async def provider_client() -> AsyncIterator[httpx.AsyncClient]:
 
 
 def selected_engine() -> str:
-    engine = os.getenv("EVALUATOR_ENGINE", "langgraph").strip().lower()
+    engine = os.getenv("EVALUATOR_ENGINE", "").strip().lower() or "langgraph"
     if engine not in {"langgraph", "legacy"}:
         raise EvaluationError(503, "provider_unavailable", "Set EVALUATOR_ENGINE to langgraph or legacy.")
     return engine

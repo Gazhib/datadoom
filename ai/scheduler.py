@@ -3,8 +3,8 @@
 import asyncio
 from collections import Counter, OrderedDict
 from collections.abc import Iterable
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from contextlib import AsyncExitStack, asynccontextmanager
+from dataclasses import dataclass, field
 from hashlib import sha256
 from time import monotonic
 
@@ -141,10 +141,45 @@ def resolve(seat: Seat, probes: dict[Provider, Probe]) -> Route:
 
 
 @dataclass
+class HostPool:
+    active: int = 0
+    reservations: int = 0
+    released: asyncio.Event = field(default_factory=asyncio.Event)
+
+
+# Share local host capacity between simultaneous evaluations and warmups in this process.
+host_pools: dict[tuple[asyncio.AbstractEventLoop, str], HostPool] = {}
+
+
+@asynccontextmanager
+async def host_slot(host: str, limit: int):
+    key = asyncio.get_running_loop(), host
+    pool = host_pools.setdefault(key, HostPool())
+    pool.reservations += 1
+    acquired = False
+    try:
+        while pool.active >= limit:
+            await pool.released.wait()
+        pool.active += 1
+        acquired = True
+        yield
+    finally:
+        if acquired:
+            pool.active -= 1
+            pool.released.set()
+            pool.released = asyncio.Event()
+        pool.reservations -= 1
+        if not pool.reservations:
+            del host_pools[key]
+
+
+@dataclass
 class Gate:
-    semaphore: asyncio.Semaphore
+    semaphore: asyncio.Semaphore | None
     previous: asyncio.Event
     admitted: asyncio.Event
+    host: str | None
+    limit: int
 
 
 class Slots:
@@ -157,20 +192,19 @@ class Slots:
         for route in routes:
             if not route.probe.reachable:
                 continue
+            host = route.provider.host if route.provider.local else None
             if config.execution == "sequential":
                 group, limit = "*", 1
-            elif config.execution == "auto" and route.provider.local:
-                group, limit = route.provider.host, config.host_concurrency
+                semaphore = groups[group].semaphore if group in groups else asyncio.Semaphore(1)
+            elif config.execution == "auto" and host:
+                group, limit = host, config.host_concurrency
+                semaphore = None
             else:
                 continue
-            prior = groups.get(group)
-            if prior:
-                gate = Gate(prior.semaphore, prior.admitted, asyncio.Event())
-            else:
-                first = asyncio.Event()
-                first.set()
-                gate = Gate(asyncio.Semaphore(limit), first, asyncio.Event())
-            groups[group] = self.gates[route.name] = gate
+            previous = groups[group].admitted if group in groups else asyncio.Event()
+            if group not in groups:
+                previous.set()
+            groups[group] = self.gates[route.name] = Gate(semaphore, previous, asyncio.Event(), host, limit)
 
     @asynccontextmanager
     async def acquire(self, name: str, cutoff: float):
@@ -178,15 +212,16 @@ class Slots:
         if not gate:
             yield
             return
-        acquired = False
         try:
-            async with asyncio.timeout_at(cutoff):
-                await gate.previous.wait()
-                await gate.semaphore.acquire()
-                acquired = True
-                gate.admitted.set()
-            yield
+            async with AsyncExitStack() as held:
+                async with asyncio.timeout_at(cutoff):
+                    await gate.previous.wait()
+                    if gate.semaphore:
+                        await gate.semaphore.acquire()
+                        held.callback(gate.semaphore.release)
+                    if gate.host:
+                        await held.enter_async_context(host_slot(gate.host, gate.limit))
+                    gate.admitted.set()
+                yield
         finally:
-            if acquired:
-                gate.semaphore.release()
             gate.admitted.set()

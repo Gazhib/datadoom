@@ -43,7 +43,8 @@ class JudgeOutcome:
         return JudgeReport(
             name=self.name, provider=self.route.provider.name,
             model=self.verdict.model if self.verdict else self.route.provider.model,
-            host=self.route.provider.host, fallback=self.route.fallback, status=self.status,
+            host=self.route.provider.host, fallback=self.route.fallback and self.status != "skipped",
+            status=self.status,
             error_code=self.error_code, seconds=self.seconds,
         )
 
