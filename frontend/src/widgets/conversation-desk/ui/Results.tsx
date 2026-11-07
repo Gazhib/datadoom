@@ -1,21 +1,21 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { gradeLabel } from '../../../entities/quality'
+import { CriterionVotes, gradeLabel, isSplitVote } from '../../../entities/quality'
 import type { Conversation, Evaluation, Score } from '../../../entities/quality'
 import { ReviewCriterion } from '../../../features/review-criterion'
 import { Icon } from '../../../shared/ui/Icon'
 import { EvidenceLinks } from './EvidenceLinks'
+import { JudgePanel } from './JudgePanel'
 import type { EvidenceTarget } from './Transcript'
 
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 const points = (value: number | null) => value === null ? '—' : number.format(value)
 const deduction = (item: Score['items'][number]) => (item.effective_weight ?? 0) - (item.points ?? 0)
 
-export function Results({ evaluation, conversation, target, running, onEvidence, onUpdated, comparison }: {
+export function Results({ evaluation, conversation, target, onEvidence, onUpdated, comparison }: {
   evaluation: Evaluation
   conversation: Conversation
   target: EvidenceTarget | null
-  running: boolean
   onEvidence: (target: EvidenceTarget | null) => void
   onUpdated: (evaluation: Evaluation) => void
   comparison?: ReactNode
@@ -26,6 +26,10 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
   const originalById = new Map(original.items.map((item) => [item.criterion_id, item]))
   const appealsById = new Map(appeals.map((appeal) => [appeal.criterion_id, appeal]))
   const [focusedId, setFocusedId] = useState('')
+  const [splitOnly, setSplitOnly] = useState(false)
+  const votesById = new Map(evaluation.panel?.votes.map((vote) => [vote.criterion_id, vote]) ?? [])
+  const visibleItems = final.items.filter((item) => !evaluation.panel || !splitOnly ||
+    (votesById.has(item.criterion_id) && isSplitVote(votesById.get(item.criterion_id)!)))
   const ranked = final.items.filter((item) => criteriaById.get(item.criterion_id)?.kind !== 'flag')
     .sort((a, b) => deduction(b) - deduction(a) || (b.points ?? 0) - (a.points ?? 0))
   const featured = ranked.slice(0, 3)
@@ -72,7 +76,7 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
           id: evidence.id, criterionId: focused.criterion_id, source: 'overview', origin: event.currentTarget,
         })}><Icon name="link" size={17} /> Go to evidence</button>}
         {focusedCriterion && focusedOriginal && <ReviewCriterion key={focusedCriterion.id} compact evaluationId={evaluation.id}
-          criterion={focusedCriterion} original={focusedOriginal} appeal={appealsById.get(focusedCriterion.id)} turns={conversation.turns} disabled={running} onUpdated={onUpdated} />}
+          criterion={focusedCriterion} original={focusedOriginal} vote={votesById.get(focusedCriterion.id)} appeal={appealsById.get(focusedCriterion.id)} turns={conversation.turns} disabled={false} onUpdated={onUpdated} />}
       </div>
     </div>}
     {appeals.some((appeal) => appeal.status === 'resolved') && <dl className="review-totals" aria-label="Review score comparison">
@@ -94,9 +98,11 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
         {final.sections.map((section) => <div key={section.name}><dt>{section.name}</dt><dd>{points(section.points)} / {points(section.possible)}</dd></div>)}
       </dl>
     </details>}
-    <div className="criteria-heading"><h3>Criterion grades</h3><span>{final.items.length} criteria</span></div>
+    {evaluation.panel && <JudgePanel panel={evaluation.panel} splitOnly={splitOnly} onSplitOnly={setSplitOnly} />}
+    <div className="criteria-heading"><h3>Criterion grades</h3><span>{visibleItems.length} criteria{splitOnly && evaluation.panel ? ' · split only' : ''}</span></div>
+    {!visibleItems.length && <p className="empty-detail">All judges agree on this evaluation. Turn off the filter to see every criterion.</p>}
     <ol className="criteria-list">
-      {final.items.map((item) => {
+      {visibleItems.map((item) => {
         const criterion = criteriaById.get(item.criterion_id)
         const originalGrade = originalById.get(item.criterion_id)
         const appeal = appealsById.get(item.criterion_id)
@@ -104,7 +110,8 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
         const gradeStyle = item.value === 'na' ? 'grade-na' : typeof item.value === 'number' ? 'grade-scale'
           : (item.value === 'yes') !== (criterion?.kind === 'flag') ? 'grade-positive' : 'grade-negative'
 
-        return <li className="criterion" key={item.criterion_id}>
+        const vote = votesById.get(item.criterion_id)
+        return <li className={`criterion${vote && isSplitVote(vote) ? ' criterion-split' : ''}`} key={item.criterion_id}>
           <div className="criterion-title">
             <span className="criterion-id">{item.criterion_id}</span>
             <h4>{criterion?.label ?? item.criterion_id}</h4>
@@ -112,6 +119,7 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
           </div>
           <div className="weight-row"><span>Weight <strong>{item.weight}</strong></span><span>Effective <strong>{item.effective_weight === null ? '—' : `${points(item.effective_weight)}%`}</strong></span><span>Points <strong>{points(item.points)}</strong></span></div>
           <p className="criterion-reason">{item.reason}</p>
+          {criterion && <CriterionVotes criterion={criterion} vote={vote} />}
           <EvidenceLinks grade={item} turns={turnsById} target={target} onEvidence={onEvidence} />
           {changed && originalGrade && <div className="original-grade">
             <strong>Original grade {gradeLabel(originalGrade.value, criterion)} · {points(originalGrade.points)} points</strong>
@@ -124,7 +132,7 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
             {criterion.na_rule && <p><strong>N/A</strong> {criterion.na_rule}</p>}
           </details>}
           {criterion && originalGrade && <ReviewCriterion evaluationId={evaluation.id} criterion={criterion} original={originalGrade}
-            appeal={appeal} turns={conversation.turns} disabled={running} onUpdated={onUpdated} />}
+            appeal={appeal} vote={vote} turns={conversation.turns} disabled={false} onUpdated={onUpdated} />}
         </li>
       })}
     </ol>

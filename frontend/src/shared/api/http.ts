@@ -1,3 +1,15 @@
+export class ApiError extends Error {
+  readonly status: number
+  readonly code: string | undefined
+
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 async function request<T>(path: string, options: RequestInit): Promise<T> {
   let response: Response
   try {
@@ -10,9 +22,9 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
     const message = payload?.error?.message
-    throw new Error(typeof message === 'string' && message.trim()
+    throw new ApiError(typeof message === 'string' && message.trim()
       ? message
-      : `The API returned HTTP ${response.status}. Try again.`)
+      : `The API returned HTTP ${response.status}. Try again.`, response.status, payload?.error?.code)
   }
   if (payload === null) throw new Error('The API did not return JSON. Check the backend connection and try again.')
   return payload as T

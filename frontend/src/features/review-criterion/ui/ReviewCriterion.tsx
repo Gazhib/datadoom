@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { allowedGradeValues, gradeLabel, qualityApi } from '../../../entities/quality'
-import type { Appeal, Criterion, Decision, Evaluation, Grade, Turn } from '../../../entities/quality'
+import { allowedGradeValues, CriterionVotes, gradeLabel, qualityApi } from '../../../entities/quality'
+import type { Appeal, Criterion, Decision, Evaluation, Grade, PanelVote, Turn } from '../../../entities/quality'
 import { useMutation } from '../../../shared/lib/useMutation'
 import { Dialog } from '../../../shared/ui/Dialog'
 import './review-criterion.css'
@@ -12,10 +12,11 @@ type ReviewProps = {
   original: Grade
   turns: Turn[]
   appeal?: Appeal
+  vote?: PanelVote
   onUpdated: (evaluation: Evaluation) => void
 }
 
-function ReviewForm({ evaluationId, criterion, original, turns, appeal, onUpdated, onClose }: ReviewProps & { onClose: () => void }) {
+function ReviewForm({ evaluationId, criterion, original, turns, appeal, vote, onUpdated, onClose }: ReviewProps & { onClose: () => void }) {
   const [reason, setReason] = useState('')
   const [action, setAction] = useState<Decision['action']>('confirm')
   const [value, setValue] = useState(original.value)
@@ -57,6 +58,7 @@ function ReviewForm({ evaluationId, criterion, original, turns, appeal, onUpdate
       <h3>{criterion.label}</h3>
       <p><strong>Original grade {gradeLabel(original.value, criterion)}</strong></p>
       <p>{original.reason}</p>
+      <CriterionVotes criterion={criterion} vote={vote} />
       <details>
         <summary>Original evidence</summary>
         <ul className="review-evidence">

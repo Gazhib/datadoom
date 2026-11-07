@@ -67,4 +67,24 @@ Vite proxies relative `/api` requests to the backend in development. To serve th
 
 The comparison uses existing saved evaluations and makes no additional evaluation requests. The view stacks its columns on narrow screens. With fewer than two evaluated versions, it explains how to create the second result. Synthetic grades for edited criteria remain labeled placeholders; they do not demonstrate live rubric inference.
 
-The page composes the conversation desk widget and the import and checklist features. The desk owns run history and version comparison and composes the criterion review feature. Its result and comparison views share evidence navigation. The quality entity owns the contract and its live and synthetic adapters, and shared code provides HTTP, request state, and UI controls.
+## Long-running evaluations and judge panels
+
+The workspace starts evaluation jobs when the backend supports them. Progress refreshes every two seconds, slows to ten seconds after a connection error, and refreshes immediately when the tab becomes visible. Queued runs show their position and can be cancelled. Running evaluations show elapsed time and each judge's progress when supplied by the backend. Failed runs keep earlier results and offer a retry with the original checklist version.
+
+Conversations, imports, checklist editing, appeals and saved results remain available during a run. Only another run for the same conversation and checklist version is blocked. The header's running indicator opens active conversations. Conversation, checklist and review/appeals navigation are saved in the URL, so reloading keeps the current workspace context. On reload the workspace retrieves persisted jobs from the backend.
+
+An older backend that returns 404 or 405 from the first job submission automatically uses synchronous evaluation for the rest of the page session. Navigation still works, but the tab must stay open to receive that response; synchronous requests cannot resume after a reload.
+
+Results with panel metadata show judge models, hosts, timings, fallback use, agreement and split decisions. The split-only filter narrows the criterion list. Individual votes also appear in appeal and resolution dialogs. Older evaluations without panel metadata keep their existing presentation. Judge availability refreshes every thirty seconds and disappears when its optional route returns 404 or 405.
+
+The group toolbar evaluates all conversations with the selected saved checklist, summarizes progress and cancels queued runs. Conversation listings show latest scores, flags and versions when available. The optional results export asks for a team name and remembers it after a successful download; an unavailable export route hides that action. Synthetic mode does not provide an organizer results export.
+
+### Synthetic queue
+
+Jobs use the existing `datadoom.synthetic.v1` localStorage store. Their progress is reconstructed from timestamps, so they continue across reloads and suspended tabs. Three synthetic judges finish sequentially in roughly 2.1, 2.6 and 1.9 seconds. The Russian fixture demonstrates a 2–1 split on C06; the English call demonstrates a skipped third judge. Existing locally saved runs retain their original metadata; create another run to see a panel.
+
+For the deterministic failure example, upload any synthetic transcript with a `conversation_id` containing `fail`. The first job for that conversation and checklist version fails at the second judge; retrying succeeds. Cancelling a job does not count as that failed attempt. Clear the store key to reset conversations, checklists, reviews and jobs together.
+
+The page owns evaluation jobs and the global status indicators. The conversation desk owns history, progress presentation and version comparison, and composes the criterion review feature. Results and comparisons share evidence navigation. The quality entity owns the contract, live and synthetic adapters, and reusable judge vote presentation. Shared code provides HTTP, request state and UI controls.
+
+No automated tests, browser checks, lint, type checks or builds were run for this change, as explicitly requested. No testing dependencies or scripts were added.
