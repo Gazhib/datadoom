@@ -10,12 +10,26 @@ from .errors import APIError
 from .models import Checklist, Conversation, EvaluatorResult, RawRecord
 
 
-def organizer_url(configured: str, group_id: str) -> str:
-    parts = urlsplit(configured)
-    if parts.scheme not in {"http", "https"} or not parts.netloc:
-        raise APIError(
-            503, "configuration_unavailable", "Organizer URL is not configured correctly."
+def validate_service_url(url: str, service: str) -> None:
+    try:
+        parts = urlsplit(url)
+        valid = (
+            parts.scheme in {"http", "https"}
+            and bool(parts.hostname)
+            and parts.port != 0
+            and bool(httpx.URL(url).host)
         )
+    except (ValueError, httpx.InvalidURL):
+        valid = False
+    if not valid:
+        raise APIError(
+            503, "configuration_unavailable", f"{service} URL is not configured correctly."
+        )
+
+
+def organizer_url(configured: str, group_id: str) -> str:
+    validate_service_url(configured, "Organizer")
+    parts = urlsplit(configured)
     # Do not parse and re-encode the signed parameters: even %20 vs + may matter.
     segments = parts.query.split("&") if parts.query else []
     replacement = "group_id=" + quote(group_id, safe="")
@@ -94,11 +108,7 @@ class Upstream:
 
     def evaluate(self, conversation: Conversation, checklist: Checklist) -> EvaluatorResult:
         url = self.settings.evaluator_url
-        parts = urlsplit(url)
-        if parts.scheme not in {"http", "https"} or not parts.netloc:
-            raise APIError(
-                503, "configuration_unavailable", "Evaluator URL is not configured correctly."
-            )
+        validate_service_url(url, "Evaluator")
         body = self.request_json(
             "POST",
             url.rstrip("/") + "/evaluate",

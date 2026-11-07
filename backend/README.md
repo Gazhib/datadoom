@@ -66,6 +66,34 @@ provided in backend configuration. When available, the expected DEV target is
 65 records (60 chats / 5 calls; 35 RU / 15 KZ / 15 EN). Check the actual response
 for control-group size; do not assume DEV counts apply to control data.
 
+### Verify organizer access
+
+Set `ORGANIZER_GET_URL` in the ignored `backend/.env`, then run:
+
+```sh
+uv run --project backend --env-file backend/.env python -m backend.verify --group-id DEV
+```
+
+The command fetches and validates the organizer wrapper and every record through
+the same ingestion boundary as the API. It prints one JSON report with counts by
+channel, language and speaker; timestamp-format counts; unique-conversation count;
+and call recording-link coverage. It does not print transcripts, conversation IDs,
+timestamps or URLs, and does not create or write a database. Timestamp strings are
+only classified for this report; imports preserve the originals exactly.
+
+DEV reports check the documented counts. Other groups use their actual counts,
+including an empty successful group. Missing call recording links or duplicate
+conversation IDs fail verification. An unfamiliar timestamp format is reported as
+`other` for inspection, without rejecting otherwise valid source timestamps.
+Exit status is 0 when the checks pass and 1 for a mismatch, missing configuration
+or upstream failure. A present HTTP(S) recording link does not establish that the
+recording is reachable; the command does not fetch recordings.
+
+Run with `--group-id CONTROL` when control access is released, then import and
+process that group using the commands below. Keep actual verification and run
+reports in ignored local storage. [Verification status](VERIFICATION.md) separates
+synthetic test evidence from the remaining official-data acceptance checks.
+
 ## Synthetic rehearsal with an evaluator stub
 
 This is a canned evaluator for the supplied synthetic fixture, not inference.
@@ -148,7 +176,10 @@ Synthetic timings do not establish the representative DEV p95 target of 30 secon
   original, and atomically save the decision and recomputed final. Concurrent
   duplicate decisions return 409. Confirmation preserves the original grade.
 - All API errors use `{error: {code, message}}`; validation does not echo source
-  inputs. API responses are marked `Cache-Control: no-store`.
+  inputs. Invalid JSON encoding returns 422; malformed service URLs return 503
+  without disclosing their values. API responses are marked `Cache-Control: no-store`.
+- HTTPX INFO and HTTPCore DEBUG diagnostics are disabled at API startup and by the
+  organizer verifier to keep signed organizer URLs out of operational logs.
 - Runtime configuration, databases, logs, environments and caches are ignored by
   `backend/.gitignore`. Default database storage is private locally. Keep any
   custom database path in an ignored directory. Do not commit official transcripts,
