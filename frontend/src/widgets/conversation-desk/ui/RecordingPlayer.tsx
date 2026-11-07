@@ -1,3 +1,4 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { useEffect, useRef, useState } from 'react'
 import type { Conversation, Speaker } from '../../../entities/quality'
 import { Icon } from '../../../shared/ui/Icon'
@@ -59,6 +60,7 @@ export function RecordingPlayer({ url, turns, duration, offsets, target, onDurat
   target: EvidenceTarget | null
   onDuration: (duration: number | null) => void
 }) {
+  const { t } = useI18n()
   const audio = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(0)
@@ -112,16 +114,16 @@ export function RecordingPlayer({ url, turns, duration, offsets, target, onDurat
   }
 
   const lanes: { label: string; speaker?: Speaker }[] = segments.length
-    ? [{ label: 'Client', speaker: 'client' }, { label: 'Operator', speaker: 'operator' }]
-    : [{ label: 'Recording' }]
+    ? [{ label: t('client'), speaker: 'client' }, { label: t('operator'), speaker: 'operator' }]
+    : [{ label: t('recording') }]
   const speakerAt = (time: number) => segments.reduce<Speaker | undefined>(
     (speaker, segment) => segment.start <= time ? segment.speaker : speaker, undefined,
   )
 
   return <section className="recording pane" aria-labelledby="recording-heading">
     <header className="recording-heading">
-      <h2 id="recording-heading"><Icon name="waveform" size={17} /> Call recording</h2>
-      <a href={url} target="_blank" rel="noopener noreferrer">Open recording <Icon name="arrowUpRight" size={15} /></a>
+      <h2 id="recording-heading"><Icon name="waveform" size={17} /> {t('callRecording')}</h2>
+      <a href={url} target="_blank" rel="noopener noreferrer">{t('openRecording')} <Icon name="arrowUpRight" size={15} /></a>
     </header>
     <audio ref={audio} src={url} preload="metadata" onLoadedMetadata={(event) => readDuration(event.currentTarget)}
       onDurationChange={(event) => readDuration(event.currentTarget)} onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
@@ -130,7 +132,7 @@ export function RecordingPlayer({ url, turns, duration, offsets, target, onDurat
         setFailure('media')
       }} />
     {peaks && <div className="waveform" aria-hidden="true">
-      {lanes.map(({ label, speaker }, lane) => <div className="wave-lane" key={label}>
+      {lanes.map(({ label, speaker }, lane) => <div className="wave-lane" key={speaker ?? 'recording'}>
         <span>{label}</span>
         <svg className={lane ? 'wave-operator' : 'wave-client'} viewBox={`0 0 ${barCount * 4} 42`} preserveAspectRatio="none">
           {start !== undefined && end != null && <rect className="wave-evidence" x={ratio(start) * barCount / 25} y="0" width={(ratio(end) - ratio(start)) * barCount / 25} height="42" />}
@@ -143,11 +145,11 @@ export function RecordingPlayer({ url, turns, duration, offsets, target, onDurat
         </svg>
       </div>)}
     </div>}
-    {!peaks && !failure && <p className="recording-note">{loadingPreview ? 'Preparing waveform…' : duration ? 'Waveform preview unavailable. Use the playback controls to listen.' : 'Loading recording details…'}</p>}
+    {!peaks && !failure && <p className="recording-note">{loadingPreview ? t('preparingWaveform') : duration ? t('waveformUnavailable') : t('loadingRecording')}</p>}
     <div className="playback">
-      <button className="play-button" type="button" data-playing={playing} aria-label={playing ? 'Pause recording' : 'Play recording'} onClick={togglePlayback}><Icon name={playing ? 'pause' : 'play'} size={22} /></button>
+      <button className="play-button" type="button" data-playing={playing} aria-label={playing ? t('pauseRecording') : t('playRecording')} onClick={togglePlayback}><Icon name={playing ? 'pause' : 'play'} size={22} /></button>
       <span className="playback-time">{formatClock(current)} <span>/</span> {duration === null ? '—:—' : formatClock(duration)}</span>
-      <input type="range" aria-label="Recording position" aria-valuetext={formatClock(current)}
+      <input type="range" aria-label={t('recordingPosition')} aria-valuetext={formatClock(current)}
         min={0} max={duration ?? 1} step="any" value={duration ? Math.min(duration, current) : 0} disabled={!duration || failure === 'media'}
         style={{ '--played': `${ratio(current)}%` } as React.CSSProperties} onChange={(event) => {
           const time = Number(event.target.value)
@@ -155,7 +157,7 @@ export function RecordingPlayer({ url, turns, duration, offsets, target, onDurat
           setCurrent(time)
         }} />
     </div>
-    {failure && <p className="recording-note" role="status">Could not play the recording here. Try again or open the recording directly.</p>}
-    {target && start === undefined && <p className="recording-note" role="status">The cited turn is highlighted below. No verified audio offset is available.</p>}
+    {failure && <p className="recording-note" role="status">{t('playbackFailed')}</p>}
+    {target && start === undefined && <p className="recording-note" role="status">{t('noAudioOffset')}</p>}
   </section>
 }

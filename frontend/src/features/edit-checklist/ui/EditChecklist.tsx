@@ -1,7 +1,9 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { qualityApi, validateCriterion } from '../../../entities/quality'
 import type { Checklist, Criterion } from '../../../entities/quality'
+import { UiError } from '../../../shared/i18n/messages'
 import { useMutation } from '../../../shared/lib/useMutation'
 import { Dialog } from '../../../shared/ui/Dialog'
 import { Icon } from '../../../shared/ui/Icon'
@@ -30,6 +32,7 @@ function ChecklistEditor({ source, onClose, onSaved }: {
   onClose: () => void
   onSaved: (checklist: Checklist) => void
 }) {
+  const { t } = useI18n()
   const [name, setName] = useState(source.name)
   const [drafts, setDrafts] = useState<DraftCriterion[]>(() => source.criteria.map((criterion) => ({
     ...criterion, weight: String(criterion.weight || 10), scale: criterion.scale.join(', '),
@@ -61,86 +64,86 @@ function ChecklistEditor({ source, onClose, onSaved }: {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     void run(async () => {
-      if (!name.trim()) throw new Error('Enter a checklist name.')
+      if (!name.trim()) throw new UiError('enterChecklistName')
       const criteria = drafts.map(normalizeCriterion)
       const seen = new Set<string>()
       for (const [index, criterion] of criteria.entries()) {
-        const issue = validateCriterion(criterion) ?? (seen.has(criterion.id) ? 'Criterion IDs must be unique.' : null)
+        const issue = validateCriterion(criterion) ?? (seen.has(criterion.id) ? 'uniqueCriterionIds' : null)
         if (issue) {
           setSelected(index)
-          throw new Error(`Criterion ${index + 1}. ${issue}`)
+          throw new Error(t('criterionIssue', { index: index + 1, issue: t(issue) }))
         }
         seen.add(criterion.id)
       }
-      if (!criteria.some(({ kind }) => kind !== 'flag')) throw new Error('Keep at least one weighted criterion.')
+      if (!criteria.some(({ kind }) => kind !== 'flag')) throw new UiError('weightedCriterionRequired')
       onSaved(await qualityApi.createChecklist({ name: name.trim(), criteria }))
       onClose()
     })
   }
 
-  return <Dialog title="Edit checklist" kicker="Checklist versions" wide pending={pending} onClose={onClose}>
-    <p className="form-note editor-note">Editing {source.version_id}. Saving creates a new version.</p>
+  return <Dialog title={t('editChecklist')} kicker={t('checklistVersions')} wide pending={pending} onClose={onClose}>
+    <p className="form-note editor-note">{t('editChecklistNote', { version: source.version_id })}</p>
     <form onSubmit={submit}>
       <fieldset disabled={pending}>
-        <label className="field"><span className="field-label">Checklist name</span>
+        <label className="field"><span className="field-label">{t('checklistName')}</span>
           <input autoFocus value={name} onChange={(event) => setName(event.target.value)} required />
         </label>
         <div className="editor-toolbar">
-          <label className="field"><span className="field-label">Criterion to edit</span>
+          <label className="field"><span className="field-label">{t('criterionToEdit')}</span>
             <select value={selected} onChange={(event) => setSelected(Number(event.target.value))}>
               {drafts.map((criterion, index) => <option key={index} value={index}>
-                {criterion.id || `Criterion ${index + 1}`} · {criterion.label || 'Untitled'}
+                {criterion.id || t('criterionName', { id: index + 1 })} · {criterion.label || t('untitled')}
               </option>)}
             </select>
           </label>
-          <button className="button button-outline" type="button" onClick={addCriterion}>Add criterion</button>
+          <button className="button button-outline" type="button" onClick={addCriterion}>{t('addCriterion')}</button>
         </div>
         <div className="editor-criterion" key={selected}>
           <div className="editor-fields editor-identity">
-            <label className="field"><span className="field-label">Criterion ID</span>
+            <label className="field"><span className="field-label">{t('criterionId')}</span>
               <input value={current.id} onChange={(event) => update({ id: event.target.value })} required />
             </label>
-            <label className="field"><span className="field-label">Criterion label</span>
+            <label className="field"><span className="field-label">{t('criterionLabel')}</span>
               <input value={current.label} onChange={(event) => update({ label: event.target.value })} required />
             </label>
           </div>
-          <label className="field"><span className="field-label">Scoring instruction</span>
+          <label className="field"><span className="field-label">{t('scoringInstruction')}</span>
             <textarea value={current.instruction} onChange={(event) => update({ instruction: event.target.value })} rows={3} required />
-            {current.kind === 'scale' && <span className="form-note">Describe what each scale step means.</span>}
+            {current.kind === 'scale' && <span className="form-note">{t('scaleDescription')}</span>}
           </label>
           <div className="editor-fields">
-            <label className="field"><span className="field-label">Answer type</span>
+            <label className="field"><span className="field-label">{t('answerType')}</span>
               <select value={current.kind} onChange={(event) => update({ kind: event.target.value as Criterion['kind'] })}>
-                <option value="binary">Yes / No</option>
-                <option value="scale">Scale</option>
-                <option value="flag">Serious error flag</option>
+                <option value="binary">{t('binary')}</option>
+                <option value="scale">{t('scale')}</option>
+                <option value="flag">{t('flag')}</option>
               </select>
             </label>
-            <label className="field"><span className="field-label">Weight</span>
+            <label className="field"><span className="field-label">{t('weight')}</span>
               <input type="number" min={1} max={100} value={current.kind === 'flag' ? '0' : current.weight}
                 disabled={current.kind === 'flag'} onChange={(event) => update({ weight: event.target.value })} required />
             </label>
           </div>
-          {current.kind === 'scale' && <label className="field"><span className="field-label">Scale steps</span>
+          {current.kind === 'scale' && <label className="field"><span className="field-label">{t('scaleSteps')}</span>
             <input value={current.scale} onChange={(event) => update({ scale: event.target.value })} placeholder="0, 5, 10" required />
-            <span className="form-note">Use comma-separated whole numbers, starting at 0.</span>
+            <span className="form-note">{t('scaleHelp')}</span>
           </label>}
-          <label className="field"><span className="field-label">Section (optional)</span>
+          <label className="field"><span className="field-label">{t('sectionOptional')}</span>
             <input value={current.section ?? ''} onChange={(event) => update({ section: event.target.value })} />
           </label>
           {current.kind !== 'flag' && <>
-            <label className="checkbox-field"><input type="checkbox" checked={current.allow_na} onChange={(event) => update({ allow_na: event.target.checked })} /> Allow N/A</label>
-            {current.allow_na && <label className="field"><span className="field-label">N/A rule</span>
+            <label className="checkbox-field"><input type="checkbox" checked={current.allow_na} onChange={(event) => update({ allow_na: event.target.checked })} /> {t('allowNa')}</label>
+            {current.allow_na && <label className="field"><span className="field-label">{t('naRule')}</span>
               <textarea value={current.na_rule ?? ''} onChange={(event) => update({ na_rule: event.target.value })} rows={2} required />
             </label>}
           </>}
-          <button className="button button-outline" type="button" disabled={drafts.length === 1} onClick={removeCriterion}>Remove criterion</button>
+          <button className="button button-outline" type="button" disabled={drafts.length === 1} onClick={removeCriterion}>{t('removeCriterion')}</button>
         </div>
       </fieldset>
       {error && <p className="inline-error" role="alert">{error}</p>}
       <div className="dialog-actions">
-        <button className="button button-outline" type="button" disabled={pending} onClick={onClose}>Cancel</button>
-        <button className="button button-primary" type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save new version'}</button>
+        <button className="button button-outline" type="button" disabled={pending} onClick={onClose}>{t('cancel')}</button>
+        <button className="button button-primary" type="submit" disabled={pending}>{pending ? t('saving') : t('saveVersion')}</button>
       </div>
     </form>
   </Dialog>
@@ -152,10 +155,11 @@ export function EditChecklist({ checklist, disabled, onSaved, navigation = false
   onSaved: (checklist: Checklist) => void
   navigation?: boolean
 }) {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   return <>
     <button className={navigation ? 'nav-button' : 'button button-outline'} type="button" aria-haspopup="dialog" disabled={disabled || !checklist} onClick={() => setEditing(true)}>
-      <Icon name="checklist" size={17} /><span>{navigation ? 'Checklists' : 'Edit checklist'}</span>
+      <Icon name="checklist" size={17} /><span>{navigation ? t('checklists') : t('editChecklist')}</span>
     </button>
     {editing && checklist && <ChecklistEditor source={checklist} onClose={() => setEditing(false)} onSaved={onSaved} />}
   </>

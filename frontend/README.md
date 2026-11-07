@@ -18,7 +18,9 @@ npm run build
 npm run dev:mock
 ```
 
-Open the local URL printed by Vite. Synthetic mode is explicitly labeled and makes no live API calls. It opens the EN sample call in **Analytics**, with playback, waveform and a saved evaluation. Use **Dialogues** to open the RU or KZ samples. The supplied `ru-001` fixture starts with an evaluation at **77.69**. Click **Run evaluation** to create a new synthetic run with the selected version. Open **Section scores** for the breakdown and select an evidence chip to focus the cited turn.
+Open the local URL printed by Vite. Synthetic mode is explicitly labeled and makes no live API calls. It opens the EN sample call in **Review**, with playback, waveform and a saved evaluation. Use **Switch conversation** above the review to open the RU or KZ samples. The supplied `ru-001` fixture starts with an evaluation at **77.69**. Click **Run evaluation** to create a new synthetic run with the selected version. Open **Section scores** for the breakdown and select an evidence chip to focus the cited turn.
+
+The header language selector switches the interface between English, Russian and Kazakh and remembers the choice in the browser. Transcripts, saved checklist content and evaluator explanations display as provided.
 
 The bundled call has verified audio cue points. For imported recordings without verified cue points, evidence highlights the exact source turn and leaves playback where it is. If the waveform cannot be loaded, the playback controls and direct recording link are still available.
 

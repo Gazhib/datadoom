@@ -1,11 +1,10 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { useId, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { gradeLabel } from '../../../entities/quality'
 import type { Checklist, EvaluationJob, Turn } from '../../../entities/quality'
 import { EvidenceLinks } from './EvidenceLinks'
 import type { EvidenceTarget } from './Transcript'
-
-const labels = { pending: 'Pending', running: 'Running', ok: 'Completed', failed: 'Failed', skipped: 'Skipped', unavailable: 'Unavailable' }
 
 export function JudgeResults({ job, checklist, turns, target, onEvidence }: {
   job: EvaluationJob
@@ -14,6 +13,7 @@ export function JudgeResults({ job, checklist, turns, target, onEvidence }: {
   target: EvidenceTarget | null
   onEvidence: (target: EvidenceTarget | null) => void
 }) {
+  const { t } = useI18n()
   const id = useId()
   const [selectedName, setSelectedName] = useState('')
   const ended = job.status === 'succeeded' || job.status === 'failed'
@@ -46,14 +46,14 @@ export function JudgeResults({ job, checklist, turns, target, onEvidence }: {
   }
 
   return <div className="judge-results">
-    <div className="judge-tabs" role="tablist" aria-label="Judge results" onKeyDown={navigate}>
+    <div className="judge-tabs" role="tablist" aria-label={t('judgeResults')} onKeyDown={navigate}>
       {judges.map((judge, index) => {
         const status = judge.displayStatus
         const isSelected = judge === selected
         return <button key={judge.name} id={`${id}-tab-${index}`} className="judge-tab" type="button" role="tab"
           aria-selected={isSelected} aria-controls={`${id}-panel-${index}`} tabIndex={isSelected ? 0 : -1}
           onClick={() => select(judge.name)}>
-          <strong>{judge.name}</strong><span className={`judge-tab-status judge-${status}`}>{labels[status]}</span>
+          <strong>{judge.name}</strong><span className={`judge-tab-status judge-${status}`}>{t(status === 'ok' ? 'completed' : status)}</span>
         </button>
       })}
     </div>
@@ -61,9 +61,9 @@ export function JudgeResults({ job, checklist, turns, target, onEvidence }: {
       role="tabpanel" aria-labelledby={`${id}-tab-${index}`} tabIndex={0} hidden={judge !== selected}>
       {judge === selected && <>
         <p className="judge-detail" role="status">
-          {judge.grades ? `Completed · ${judge.grades.length} criteria` :
-            judge.displayStatus === 'unavailable' || judge.status === 'ok' ? 'Individual grades are unavailable for this run.' : labels[judge.status]}
-          {judge.seconds != null && ` · ${judge.seconds.toFixed(1)} s`}
+          {judge.grades ? t('completedCriteria', { criteria: t('criteriaCount', { count: judge.grades.length }) }) :
+            judge.displayStatus === 'unavailable' || judge.status === 'ok' ? t('judgeGradesUnavailable') : t(judge.status)}
+          {judge.seconds != null && ` · ${t('seconds', { value: judge.seconds.toFixed(1) })}`}
           {judge.error_code && ` · ${judge.error_code.replaceAll('_', ' ')}`}
         </p>
         {judge.grades && <ol className="judge-grades">
@@ -74,7 +74,7 @@ export function JudgeResults({ job, checklist, turns, target, onEvidence }: {
             return <li className="criterion" key={grade.criterion_id}>
               <div className="criterion-title judge-criterion-title">
                 <h4>{criterion?.label ?? grade.criterion_id}</h4>
-                <span className={`grade-pill grade-${style}`}>{gradeLabel(grade.value, criterion)}</span>
+                <span className={`grade-pill grade-${style}`}>{gradeLabel(grade.value, criterion, t)}</span>
               </div>
               <p className="criterion-reason">{grade.reason}</p>
               <EvidenceLinks grade={grade} turns={turns} target={target} source={`${source}${judge.name}`} onEvidence={onEvidence} />

@@ -21,6 +21,9 @@ select { min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var
 .field { display: grid; gap: 7px; margin: 0 0 15px; }
 .field input, .field textarea, .field select { width: 100%; min-height: 41px; padding: 10px 12px; border: 1px solid var(--input-line); border-radius: 5px; background: var(--paper); font-size: 12px; }
 .field textarea { resize: vertical; line-height: 1.6; }
+.file-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; cursor: pointer; }
+.file-picker:focus-within > .button { outline: 2px solid var(--accent); outline-offset: 3px; }
+.file-picker .form-note { overflow-wrap: anywhere; }
 .form-note { color: var(--muted); font-size: 11px; line-height: 1.6; }
 .dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
 .inline-error { padding: 10px 12px; border: 1px solid #e6c5b5; border-radius: 5px; background: #f8eae2; color: #8b3b28; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }

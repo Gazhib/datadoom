@@ -1,5 +1,7 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { useEffect, useState } from 'react'
 import type { Checklist, Evaluation, EvaluationJob, Turn } from '../../../entities/quality'
+import { errorMessage } from '../../../shared/lib/errorMessage'
 import { useMutation } from '../../../shared/lib/useMutation'
 import { Icon } from '../../../shared/ui/Icon'
 import { JudgeResults } from './JudgeResults'
@@ -7,6 +9,7 @@ import type { EvidenceTarget } from './Transcript'
 import './evaluation-progress.css'
 
 const active = (job: EvaluationJob) => job.status === 'queued' || job.status === 'running'
+const jobStates = { queued: 'queue', running: 'running', succeeded: 'completed', failed: 'failed', cancelled: 'cancelled' } as const
 type Evidence = { turns?: Turn[]; target: EvidenceTarget | null; onEvidence: (target: EvidenceTarget | null) => void }
 
 function elapsed(startedAt: string | null, now: number) {
@@ -22,26 +25,30 @@ function JobProgress({ job, now, checklist, evidence, onCancel, onRetry }: {
   onCancel: (id: string) => Promise<void>
   onRetry: (versionId: string) => void
 }) {
+  const { t } = useI18n()
   const { run, pending, error } = useMutation()
   const queued = job.status === 'queued'
-  return <section className={`evaluation-progress progress-${job.status}`} aria-label={`Evaluation ${job.checklist_version_id} · ${job.status}`}>
+  return <section className={`evaluation-progress progress-${job.status}`} aria-label={t('evaluationStatus', { version: job.checklist_version_id, status: t(jobStates[job.status]) })}>
     <div className="progress-heading">
       <div className="progress-title">
         {active(job) ? <span className="spinner" aria-hidden="true" /> : <Icon name={job.status === 'succeeded' ? 'check' : job.status === 'failed' ? 'flag' : 'minus'} size={17} />}
-        <strong role="status">{queued ? `Queued · ${job.queue_position && job.queue_position > 1 ? `${job.queue_position - 1} ahead` : 'next to run'}`
-          : job.status === 'running' ? <>Running · <span aria-live="off">{elapsed(job.started_at, now)}</span></>
-          : job.status === 'succeeded' ? 'Evaluation completed' : job.status === 'failed' ? 'Evaluation failed' : 'Evaluation cancelled'}</strong>
+        <strong role="status">{queued ? (job.queue_position && job.queue_position > 1
+          ? t('queuedAhead', { count: job.queue_position - 1 }) : t('nextToRun'))
+          : job.status === 'running' ? <>{t('running')} · <span aria-live="off">{elapsed(job.started_at, now)}</span></>
+          : job.status === 'succeeded' ? t('evaluationCompleted') : job.status === 'failed' ? t('evaluationFailed') : t('evaluationCancelled')}</strong>
         <span className="progress-version">{job.checklist_version_id}</span>
       </div>
       {queued && <button className="button button-outline" type="button" disabled={pending}
-        onClick={() => { void run(() => onCancel(job.id)) }}>{pending ? 'Cancelling…' : 'Cancel queued run'}</button>}
-      {job.status === 'failed' && <button className="button button-outline" type="button" onClick={() => onRetry(job.checklist_version_id)}>Retry evaluation</button>}
+        onClick={() => { void run(() => onCancel(job.id)) }}>{pending ? t('cancelling') : t('cancelQueuedRun')}</button>}
+      {job.status === 'failed' && <button className="button button-outline" type="button" onClick={() => onRetry(job.checklist_version_id)}>{t('retryEvaluation')}</button>}
     </div>
-    {job.error && <p className="inline-error" role="alert">{job.error.message}</p>}
+    {job.error && <p className="inline-error" role="alert">
+      {job.error.code === 'fixture_failure' ? t('demoEvaluationFailure') : job.error.message}
+    </p>}
     {evidence && !!job.progress?.judges.length && <JudgeResults job={job} checklist={checklist}
       turns={new Map(evidence.turns?.map((turn) => [turn.id, turn]))}
       target={evidence.target} onEvidence={evidence.onEvidence} />}
-    {job.id.startsWith('sync-') && <p className="form-note">Keep this tab open to receive the result from this backend. You can continue browsing the workspace.</p>}
+    {job.id.startsWith('sync-') && <p className="form-note">{t('keepTabOpen')}</p>}
     {error && <p className="inline-error" role="alert">{error}</p>}
   </section>
 }
@@ -53,10 +60,11 @@ export function EvaluationProgress({ jobs, versions, runs, evaluation, evidence,
   evaluation?: Evaluation
   evidence?: Evidence
   starting: boolean
-  failure?: { message: string; versionId: string }
+  failure?: { error: Error; versionId: string }
   onCancel: (id: string) => Promise<void>
   onRetry: (versionId: string) => void
 }) {
+  const { t } = useI18n()
   const [now, setNow] = useState(Date.now)
   const running = jobs.some((job) => job.status === 'running')
   useEffect(() => {
@@ -71,13 +79,13 @@ export function EvaluationProgress({ jobs, versions, runs, evaluation, evidence,
       (job.evaluation_id === evaluation?.id || (job === latest && !runs.some((run) => run.id === job.evaluation_id)))))
 
   return <>
-    {starting && !visible.length && <p className="run-notice" role="status"><span className="spinner" /> Starting evaluation…</p>}
+    {starting && !visible.length && <p className="run-notice" role="status"><span className="spinner" /> {t('startingEvaluation')}</p>}
     {visible.map((job) => <JobProgress key={job.id} job={job} now={now} evidence={evidence}
       checklist={versions.find((version) => version.version_id === job.checklist_version_id)} onCancel={onCancel} onRetry={onRetry} />)}
     {failure && <div className="evaluation-error">
-      <p className="inline-error" role="alert">{failure.message}</p>
-      <p className="form-note">Saved results remain available.</p>
-      <button className="button button-outline" type="button" disabled={starting} onClick={() => onRetry(failure.versionId)}>Retry evaluation</button>
+      <p className="inline-error" role="alert">{errorMessage(failure.error, t)}</p>
+      <p className="form-note">{t('savedResultsAvailable')}</p>
+      <button className="button button-outline" type="button" disabled={starting} onClick={() => onRetry(failure.versionId)}>{t('retryEvaluation')}</button>
     </div>}
   </>
 }

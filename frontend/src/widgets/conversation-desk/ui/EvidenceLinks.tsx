@@ -1,3 +1,4 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import type { Grade, Turn } from '../../../entities/quality'
 import { Icon } from '../../../shared/ui/Icon'
 import type { EvidenceTarget } from './Transcript'
@@ -10,6 +11,7 @@ export function EvidenceLinks({ grade, turns, target, original, source, onEviden
   source?: string
   onEvidence: (target: EvidenceTarget) => void
 }) {
+  const { t } = useI18n()
   const { criterion_id: criterionId } = grade
   return <div className="evidence-links">
     {grade.evidence_turn_ids.map((id) => {
@@ -18,7 +20,7 @@ export function EvidenceLinks({ grade, turns, target, original, source, onEviden
         && target.original === original && target.source === source
       return turn && <button className="evidence-link" type="button" key={id} aria-current={current ? 'true' : undefined}
         onClick={(event) => onEvidence({ id, criterionId, original, source, origin: event.currentTarget })}
-        aria-label={`Show ${criterionId} ${original ? 'original ' : ''}evidence, turn ${id} at ${turn.timestamp}`}>
+        aria-label={t(original ? 'showOriginalEvidence' : 'showEvidence', { criterion: criterionId, id, time: turn.timestamp })}>
         <Icon name="link" size={15} /> <span>{id} · {turn.timestamp}</span><Icon name="arrowUpRight" size={13} />
       </button>
     })}

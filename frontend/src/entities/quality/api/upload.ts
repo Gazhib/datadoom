@@ -1,3 +1,4 @@
+import { UiError } from '../../../shared/i18n/messages'
 import type { RawRecord } from '../model/contract'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -5,30 +6,30 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 export function validateRecords(records: unknown[]): RawRecord[] {
   return records.map((record, index) => {
-    const prefix = `Record ${index + 1}`
+    const position = { record: index + 1 }
     if (!isObject(record) || typeof record.conversation_id !== 'string' || !record.conversation_id.trim()) {
-      throw new Error(`${prefix} needs a conversation_id.`)
+      throw new UiError('uploadIdRequired', position)
     }
     if (record.channel !== 'agent chat' && record.channel !== 'voice call') {
-      throw new Error(`${prefix} needs channel “agent chat” or “voice call”.`)
+      throw new UiError('uploadInvalidChannel', position)
     }
     if (record.language !== 'RU' && record.language !== 'KZ' && record.language !== 'EN') {
-      throw new Error(`${prefix} needs language RU, KZ or EN.`)
+      throw new UiError('uploadInvalidLanguage', position)
     }
     if (record.audio_url !== null && typeof record.audio_url !== 'string') {
-      throw new Error(`${prefix} needs audio_url as a string or null.`)
+      throw new UiError('uploadInvalidAudio', position)
     }
-    if (!Array.isArray(record.transcript)) throw new Error(`${prefix} needs a transcript array.`)
+    if (!Array.isArray(record.transcript)) throw new UiError('uploadTranscriptRequired', position)
 
     const transcript = record.transcript.map((turn: unknown, turnIndex: number): RawRecord['transcript'][number] => {
       if (!isObject(turn) || typeof turn.timestamp !== 'string' || typeof turn.text !== 'string' ||
         (turn.speaker !== 'client' && turn.speaker !== 'operator' && turn.speaker !== 'bot' && turn.speaker !== 'system')) {
-        throw new Error(`${prefix}, turn ${turnIndex + 1} needs a timestamp, supported speaker and text.`)
+        throw new UiError('uploadInvalidTurn', { ...position, turn: turnIndex + 1 })
       }
       return { timestamp: turn.timestamp, speaker: turn.speaker, text: turn.text }
     })
     if (!transcript.some((turn) => turn.text.trim())) {
-      throw new Error(`${prefix} needs at least one turn with text.`)
+      throw new UiError('uploadTextRequired', position)
     }
 
     return {
@@ -46,11 +47,11 @@ export function parseUpload(text: string): RawRecord[] {
   try {
     value = JSON.parse(text)
   } catch {
-    throw new Error('This file is not valid JSON. Check the file and try again.')
+    throw new UiError('invalidJson')
   }
   if (isObject(value) && 'isSuccess' in value) {
     if (value.isSuccess !== true || !isObject(value.data) || !Array.isArray(value.data.records)) {
-      throw new Error('The organizer envelope needs isSuccess: true and a data.records array.')
+      throw new UiError('invalidOrganizerEnvelope')
     }
     value = value.data.records
   }

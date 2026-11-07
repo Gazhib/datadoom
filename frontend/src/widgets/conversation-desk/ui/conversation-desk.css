@@ -2,13 +2,6 @@
 .desk-heading { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 18px 24px; min-width: 0; padding-bottom: 6px; }
 .desk-heading > div { min-width: 0; }
 .desk-heading h1 { font-size: clamp(32px, 3.6vw, 54px); font-weight: 740; line-height: 1.05; letter-spacing: -.055em; }
-.conversation-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; color: var(--muted); font-size: 13px; }
-.conversation-tags > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
-.conversation-tags svg { flex: 0 0 auto; }
-.conversation-ref { padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
-.conversation-ref svg { color: var(--accent); }
-.conversation-tags strong { min-width: 0; font-family: var(--mono); font-weight: 650; }
-.conversation-tags > span + span::before { content: ''; width: 3px; height: 3px; margin-right: 3px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
 .run-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 9px; }
 .version-control { display: grid; gap: 5px; min-width: 0; }
 .version-control select { width: 240px; min-height: 42px; text-overflow: ellipsis; }

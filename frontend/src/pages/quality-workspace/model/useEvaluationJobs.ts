@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { qualityApi } from '../../../entities/quality'
 import type { Evaluation, EvaluationJob } from '../../../entities/quality'
-import { errorMessage } from '../../../shared/lib/errorMessage'
+import { UiError } from '../../../shared/i18n/messages'
+import { captureError } from '../../../shared/lib/errorMessage'
 
 export const isActiveJob = (job: EvaluationJob) => job.status === 'queued' || job.status === 'running'
 const pairKey = (key: string, version: string) => JSON.stringify([key, version])
-type RunFailure = { message: string; versionId: string }
+type RunFailure = { error: Error; versionId: string }
 
 // The page owns runs so switching conversations never tears down an evaluation.
 export function useEvaluationJobs(conversationKey?: string) {
@@ -19,7 +20,7 @@ export function useEvaluationJobs(conversationKey?: string) {
   const [starting, setStarting] = useState<string[]>([])
   const inFlight = useRef(new Set<string>())
   const [failures, setFailures] = useState<Record<string, RunFailure | undefined>>({})
-  const [pollError, setPollError] = useState<string | null>(null)
+  const [pollError, setPollError] = useState<Error | null>(null)
   const [revision, setRevision] = useState(0)
   const [groupSupported, setGroupSupported] = useState(true)
   const mounted = useRef(true)
@@ -90,7 +91,7 @@ export function useEvaluationJobs(conversationKey?: string) {
         if (current.some(isActiveJob)) timer = setTimeout(() => { void poll() }, 2000)
       } catch (error) {
         if (signal.aborted) return
-        setPollError(errorMessage(error))
+        setPollError(captureError(error))
         timer = setTimeout(() => { void poll() }, 10_000)
       }
     }
@@ -139,7 +140,7 @@ export function useEvaluationJobs(conversationKey?: string) {
         if (mounted.current) rememberEvaluation(evaluation)
       }
     } catch (error) {
-      if (mounted.current) setFailures((previous) => ({ ...previous, [key]: { message: errorMessage(error), versionId } }))
+      if (mounted.current) setFailures((previous) => ({ ...previous, [key]: { error: captureError(error), versionId } }))
     } finally {
       inFlight.current.delete(pair)
       if (mounted.current) {
@@ -154,7 +155,7 @@ export function useEvaluationJobs(conversationKey?: string) {
     if (!mounted.current) return
     if (!result) {
       setGroupSupported(false)
-      throw new Error('Group evaluation is unavailable on this backend. Run conversations individually.')
+      throw new UiError('groupUnavailable')
     }
     mergeJobs(result.items)
     setRevision((value) => value + 1)

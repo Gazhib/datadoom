@@ -1,3 +1,4 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import type { Conversation } from '../../../entities/quality'
@@ -13,6 +14,7 @@ function focusEvidence(element: HTMLElement) {
 }
 
 export function Transcript({ conversation, target }: { conversation: Conversation; target: EvidenceTarget | null }) {
+  const { t } = useI18n()
   const transcript = useRef<HTMLOListElement>(null)
 
   useLayoutEffect(() => {
@@ -30,20 +32,20 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
 
   return <section className="transcript pane" aria-labelledby="transcript-heading">
     <header className="pane-heading">
-      <h2 id="transcript-heading" tabIndex={-1}>Transcript</h2>
-      <span className="quiet-chip">{conversation.turns.length} {conversation.turns.length === 1 ? 'turn' : 'turns'}</span>
+      <h2 id="transcript-heading" tabIndex={-1}>{t('transcript')}</h2>
+      <span className="quiet-chip">{t('turnCount', { count: conversation.turns.length })}</span>
     </header>
     <ol className="turns" ref={transcript}>
       {conversation.turns.map((turn) => <li className={`turn turn-${turn.speaker}${target?.id === turn.id ? ' turn-highlighted' : ''}`} key={turn.id} data-turn={turn.id} tabIndex={-1}>
         <span className="turn-indicator" aria-hidden="true" />
         <span className="turn-id">{turn.id}</span>
         <div className="turn-copy">
-          <div className="turn-meta"><strong>{turn.speaker}</strong><time>{turn.timestamp}</time></div>
+          <div className="turn-meta"><strong>{t(turn.speaker)}</strong><time>{turn.timestamp}</time></div>
           <p lang={conversation.language === 'KZ' ? 'kk' : conversation.language.toLowerCase()}>{turn.text}</p>
-          {target?.id === turn.id && <button className="evidence-return" type="button" onClick={() => focusEvidence(target.origin)}><Icon name="arrow" size={15} /> Back to {target.criterionId}</button>}
+          {target?.id === turn.id && <button className="evidence-return" type="button" onClick={() => focusEvidence(target.origin)}><Icon name="arrow" size={15} /> {t('backToCriterion', { id: target.criterionId })}</button>}
         </div>
       </li>)}
     </ol>
-    <div className="transcript-footer"><Icon name="shield" size={14} /> Original transcript · Source timestamps preserved</div>
+    <div className="transcript-footer"><Icon name="shield" size={14} /> {t('originalTranscript')}</div>
   </section>
 }

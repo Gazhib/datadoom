@@ -1,7 +1,9 @@
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { qualityApi } from '../../../entities/quality'
 import type { Checklist, ConversationSummary, EvaluationJob } from '../../../entities/quality'
+import { UiError } from '../../../shared/i18n/messages'
 import { useMutation } from '../../../shared/lib/useMutation'
 import { Dialog } from '../../../shared/ui/Dialog'
 import { Icon } from '../../../shared/ui/Icon'
@@ -22,6 +24,7 @@ export function GroupActions({ items, groupId, version, jobs, supported, onGroup
   onStart: (groupId: string, versionId: string) => Promise<void>
   onCancel: (id: string) => Promise<void>
 }) {
+  const { t } = useI18n()
   const groups = [...new Set(items.map((item) => item.group_id))]
   const conversations = items.filter((item) => item.group_id === groupId)
   const groupJobs = conversations.flatMap((item) => {
@@ -36,7 +39,7 @@ export function GroupActions({ items, groupId, version, jobs, supported, onGroup
   const [teamName, setTeamName] = useState(rememberedTeam)
   const [teamDialog, setTeamDialog] = useState(false)
   const [exportSupported, setExportSupported] = useState(true)
-  const [notice, setNotice] = useState('')
+  const [exported, setExported] = useState<{ group: string; version: string } | null>(null)
   const { run, pending, error } = useMutation()
 
   async function download() {
@@ -44,7 +47,6 @@ export function GroupActions({ items, groupId, version, jobs, supported, onGroup
     const payload = await qualityApi.exportResults(groupId, version.version_id, teamName.trim())
     if (!payload) {
       setExportSupported(false)
-      setNotice('Results export is unavailable on this backend.')
       setTeamDialog(false)
       return
     }
@@ -58,7 +60,7 @@ export function GroupActions({ items, groupId, version, jobs, supported, onGroup
     link.remove()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
     setTeamDialog(false)
-    setNotice(`Downloaded results.json for ${groupId} · ${version.version_id}.`)
+    setExported({ group: groupId, version: version.version_id })
   }
 
   function submitTeam(event: FormEvent<HTMLFormElement>) {
@@ -67,47 +69,50 @@ export function GroupActions({ items, groupId, version, jobs, supported, onGroup
   }
 
   if (!groups.length) return null
-  return <section className="group-toolbar" aria-label="Group evaluations">
+  return <section className="group-toolbar" aria-label={t('groupEvaluations')}>
     <div className="group-toolbar-main">
-      <label className="group-control"><Icon name="folder" size={16} /><span className="sr-only">Conversation group</span>
+      <label className="group-control"><Icon name="folder" size={16} /><span className="sr-only">{t('conversationGroup')}</span>
         <select value={groupId} onChange={(event) => onGroup(event.target.value)}>
-          {groups.map((group) => <option key={group} value={group}>Group {group}</option>)}
+          {groups.map((group) => <option key={group} value={group}>{t('groupName', { id: group })}</option>)}
         </select>
       </label>
-      <span className="group-count">{conversations.length} conversations</span>
+      <span className="group-count">{t('conversationCount', { count: conversations.length })}</span>
       <div className="group-buttons">
         {supported && <button className="button button-outline" type="button" disabled={!version || pending || !!running || !!queued.length}
           onClick={() => { if (version) void run(() => onStart(groupId, version.version_id)) }}>
-          <Icon name="layers" size={15} />{pending ? 'Working…' : 'Evaluate group'}
+          <Icon name="layers" size={15} />{pending ? t('working') : t('evaluateGroup')}
         </button>}
         {!!queued.length && <button className="button button-outline" type="button" disabled={pending} onClick={() => {
           void run(async () => {
             const outcomes = await Promise.allSettled(queued.map((job) => onCancel(job.id)))
             const rejected = outcomes.filter((outcome) => outcome.status === 'rejected')
-            if (rejected.length) throw new Error(`${rejected.length} queued runs could not be cancelled. They may already be running.`)
+            if (rejected.length) throw new UiError('cancelQueuedFailed', { count: rejected.length })
           })
-        }}>Cancel queued ({queued.length})</button>}
+        }}>{t('cancelQueuedCount', { count: queued.length })}</button>}
         {exportSupported && <button className="button button-outline" type="button" disabled={!version || pending}
           onClick={() => { if (teamName.trim()) void run(download); else setTeamDialog(true) }}>
-          <Icon name="file" size={15} /> Download results.json
+          <Icon name="file" size={15} /> {t('downloadResultsFile')}
         </button>}
       </div>
     </div>
     {!!groupJobs.length && <div className="group-progress" role="status">
-      <progress value={done + failed + cancelled} max={conversations.length} aria-label="Group evaluations completed" />
-      <span>{done} done · {failed} failed · {running} running · {queued.length} queued{cancelled ? ` · ${cancelled} cancelled` : ''} / {conversations.length}</span>
+      <progress value={done + failed + cancelled} max={conversations.length} aria-label={t('groupCompleted')} />
+      <span>{t('groupProgress', { done, failed, running, queued: queued.length })}
+        {cancelled > 0 && ` · ${t('cancelledCount', { count: cancelled })}`} / {conversations.length}</span>
     </div>}
-    {notice && <p className="form-note" role="status">{notice}</p>}
+    {(!exportSupported || exported) && <p className="form-note" role="status">
+      {exportSupported && exported ? t('exportDownloaded', exported) : t('exportUnavailable')}
+    </p>}
     {error && !teamDialog && <p className="inline-error" role="alert">{error}</p>}
-    {teamDialog && <Dialog title="Download results" kicker="Organizer export" pending={pending} onClose={() => setTeamDialog(false)}>
-      <p className="form-note">Export group {groupId} with checklist {version?.version_id}. Original grades are used. Your team name will be remembered in this browser.</p>
+    {teamDialog && <Dialog title={t('downloadResults')} kicker={t('organizerExport')} pending={pending} onClose={() => setTeamDialog(false)}>
+      <p className="form-note">{t('exportDescription', { group: groupId, version: version?.version_id ?? '' })}</p>
       <form onSubmit={submitTeam}>
-        <label className="field"><span className="field-label">Team name</span>
+        <label className="field"><span className="field-label">{t('teamName')}</span>
           <input value={teamName} onChange={(event) => setTeamName(event.target.value)} required maxLength={200} disabled={pending} autoFocus />
         </label>
         {error && <p className="inline-error" role="alert">{error}</p>}
-        <div className="dialog-actions"><button className="button button-outline" type="button" disabled={pending} onClick={() => setTeamDialog(false)}>Cancel</button>
-          <button className="button button-primary" type="submit" disabled={pending || !teamName.trim()}>{pending ? 'Preparing…' : 'Download results.json'}</button></div>
+        <div className="dialog-actions"><button className="button button-outline" type="button" disabled={pending} onClick={() => setTeamDialog(false)}>{t('cancel')}</button>
+          <button className="button button-primary" type="submit" disabled={pending || !teamName.trim()}>{pending ? t('preparing') : t('downloadResultsFile')}</button></div>
       </form>
     </Dialog>}
   </section>

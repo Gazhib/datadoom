@@ -1,3 +1,4 @@
+import { UiError } from '../../../shared/i18n/messages'
 import { defaultChecklist, demoConversations, fixtureJudges, fixturePanel, gradesByFixture } from './fixtures'
 import { validateRecords } from './upload'
 import type { Checklist, Conversation, Evaluation, EvaluationJob, Grade, QualityApi, RawRecord } from '../model/contract'
@@ -124,8 +125,8 @@ function advanceJobs(store: Store): Store {
 }
 
 function enqueue(store: Store, key: string, versionId: string): EvaluationJob {
-  if (!store.conversations.some((item) => item.key === key)) throw new Error('Conversation not found.')
-  if (!store.checklists.some((item) => item.version_id === versionId)) throw new Error('Checklist version not found.')
+  if (!store.conversations.some((item) => item.key === key)) throw new UiError('conversationNotFound')
+  if (!store.checklists.some((item) => item.version_id === versionId)) throw new UiError('versionNotFound')
   const existing = store.jobs.find((job) => job.conversation_key === key && job.checklist_version_id === versionId &&
     (job.status === 'queued' || job.status === 'running'))
   if (existing) return existing
@@ -142,7 +143,7 @@ function enqueue(store: Store, key: string, versionId: string): EvaluationJob {
 
 function getEvaluation(store: Store, id: string) {
   const evaluation = store.evaluations.find((item) => item.id === id)
-  if (!evaluation) throw new Error('Evaluation not found.')
+  if (!evaluation) throw new UiError('evaluationNotFound')
   return evaluation
 }
 
@@ -155,9 +156,9 @@ export const mockApi: QualityApi = {
   async importConversations(input) {
     await pause()
     const group = input.group_id.trim()
-    if (!group) throw new Error('Enter a group ID.')
+    if (!group) throw new UiError('enterGroupId')
     if (input.source === 'organizer' && group !== 'SYNTH') {
-      throw new Error('The synthetic organizer source only contains group SYNTH. Use SYNTH or upload a synthetic JSON file.')
+      throw new UiError('demoGroupOnly')
     }
 
     const records = input.source === 'organizer' ? demoConversations.map(asRaw) : validateRecords(input.records)
@@ -169,7 +170,7 @@ export const mockApi: QualityApi = {
       const match = conversations.find((item) => item.group_id === group && item.conversation_id === record.conversation_id)
       if (match) {
         if (JSON.stringify(asRaw(match)) !== JSON.stringify(record)) {
-          throw new Error(`Conversation ${record.conversation_id} already exists in ${group} with different source data.`)
+          throw new UiError('conversationConflict', { id: record.conversation_id, group })
         }
         skipped++
         continue
@@ -199,7 +200,7 @@ export const mockApi: QualityApi = {
 
   async getConversation(key) {
     const conversation = readStore().conversations.find((item) => item.key === key)
-    if (!conversation) throw new Error('Conversation not found.')
+    if (!conversation) throw new UiError('conversationNotFound')
     return conversation
   },
 
@@ -209,14 +210,14 @@ export const mockApi: QualityApi = {
 
   async createChecklist(draft) {
     await pause()
-    if (!draft.name.trim()) throw new Error('Enter a checklist name.')
-    if (!draft.criteria.some(({ kind }) => kind !== 'flag')) throw new Error('Keep at least one weighted criterion.')
+    if (!draft.name.trim()) throw new UiError('enterChecklistName')
+    if (!draft.criteria.some(({ kind }) => kind !== 'flag')) throw new UiError('weightedCriterionRequired')
     if (new Set(draft.criteria.map(({ id }) => id)).size !== draft.criteria.length) {
-      throw new Error('Criterion IDs must be unique.')
+      throw new UiError('uniqueCriterionIds')
     }
     for (const criterion of draft.criteria) {
       const error = validateCriterion(criterion)
-      if (error) throw new Error(error)
+      if (error) throw new UiError(error)
     }
     const store = readStore()
     const checklist = { ...draft, version_id: `fixture-v${store.checklists.length + 1}` }
@@ -243,7 +244,7 @@ export const mockApi: QualityApi = {
   async getEvaluationJob(id, signal) {
     signal?.throwIfAborted()
     const job = readStore().jobs.find((item) => item.id === id)
-    if (!job) throw new Error('Evaluation job not found.')
+    if (!job) throw new UiError('jobNotFound')
     return job
   },
 
@@ -265,8 +266,8 @@ export const mockApi: QualityApi = {
   async cancelEvaluationJob(id) {
     const store = readStore()
     const job = store.jobs.find((item) => item.id === id)
-    if (!job) throw new Error('Evaluation job not found.')
-    if (job.status !== 'queued') throw new Error('Only a queued evaluation can be cancelled.')
+    if (!job) throw new UiError('jobNotFound')
+    if (job.status !== 'queued') throw new UiError('cancelQueuedOnly')
     job.status = 'cancelled'
     job.queue_position = null
     job.finished_at = new Date().toISOString()
@@ -291,9 +292,9 @@ export const mockApi: QualityApi = {
     await pause()
     const store = readStore()
     const conversation = store.conversations.find((item) => item.key === key)
-    if (!conversation) throw new Error('Conversation not found.')
+    if (!conversation) throw new UiError('conversationNotFound')
     const checklist = store.checklists.find(({ version_id }) => version_id === versionId)
-    if (!checklist) throw new Error('Checklist version not found.')
+    if (!checklist) throw new UiError('versionNotFound')
     const evaluation = makeEvaluation(conversation, checklist, crypto.randomUUID())
     writeStore({ ...store, evaluations: [evaluation, ...store.evaluations] })
     return evaluation
@@ -303,10 +304,10 @@ export const mockApi: QualityApi = {
     await pause()
     const store = readStore()
     const evaluation = getEvaluation(store, id)
-    if (!evaluation.checklist.criteria.some((criterion) => criterion.id === criterionId)) throw new Error('Criterion not found.')
-    if (!comment.trim()) throw new Error('Enter an appeal comment.')
+    if (!evaluation.checklist.criteria.some((criterion) => criterion.id === criterionId)) throw new UiError('criterionNotFound')
+    if (!comment.trim()) throw new UiError('enterAppealComment')
     if (evaluation.appeals.some(({ criterion_id }) => criterion_id === criterionId)) {
-      throw new Error('An appeal already exists for this criterion.')
+      throw new UiError('appealExists')
     }
     return saveEvaluation(store, {
       ...evaluation,
@@ -319,8 +320,8 @@ export const mockApi: QualityApi = {
     const store = readStore()
     const evaluation = getEvaluation(store, id)
     const appeal = evaluation.appeals.find(({ criterion_id }) => criterion_id === criterionId)
-    if (!appeal || appeal.status !== 'open') throw new Error('This appeal is no longer open.')
-    if (!decision.reason.trim()) throw new Error('Enter a decision reason.')
+    if (!appeal || appeal.status !== 'open') throw new UiError('appealClosed')
+    if (!decision.reason.trim()) throw new UiError('enterDecisionReason')
     if (decision.action === 'change') {
       const criterion = evaluation.checklist.criteria.find(({ id }) => id === criterionId)!
       const turns = store.conversations.find(({ key }) => key === evaluation.conversation_key)!.turns
@@ -328,7 +329,7 @@ export const mockApi: QualityApi = {
       if (!replacement || replacement.criterion_id !== criterionId ||
         !allowedGradeValues(criterion).includes(replacement.value) || !replacement.reason.trim() ||
         !replacement.evidence_turn_ids.length || replacement.evidence_turn_ids.some((id) => !turns.some((turn) => turn.id === id))) {
-        throw new Error('Enter an allowed grade, a rationale and evidence from this conversation.')
+        throw new UiError('invalidReplacement')
       }
     }
     const appeals = evaluation.appeals.map((item) => item === appeal ? { ...item, status: 'resolved' as const, decision } : item)
