@@ -1,51 +1,42 @@
 :root {
   font-family: "Onest Variable", "Segoe UI", system-ui, sans-serif;
-  color: #212139;
-  background: #f5f5fb;
+  color: #272923;
+  background: #f7f7f2;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-
-  --ink: #212139;
-  --muted: #5d5d77;
-  --line: #e4e4ef;
-  --paper: #fff;
-  --rail: #191b31;
-  --violet: #6047d9;
-  --lime: #daf686;
-  --surface-shadow: 0 2px 6px #25224207;
+  --ink: #272923;
+  --muted: #75766d;
+  --line: #e5e5dc;
+  --paper: #fffefa;
+  --rail: #292d27;
+  --accent: #a84327;
+  --accent-hover: #8b351e;
+  --accent-soft: #f6e9df;
+  --surface: #f2f2eb;
+  --success: #44654e;
   --mono: "Cascadia Code", Consolas, monospace;
-  --rail-width: clamp(218px, 17.2vw, 252px);
-  --header-height: 68px;
-  --gutter: clamp(20px, 3.1vw, 48px);
-}
-
-@media (max-width: 720px) {
-  :root { --header-height: 58px; --gutter: 16px; }
+  --rail-width: 76px;
+  --header-height: 76px;
+  --gutter: clamp(24px, 3vw, 52px);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-body { min-width: 320px; margin: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-height) + 20px); }
+body { min-width: 360px; margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, summary, select { cursor: pointer; }
-button:disabled, select:disabled { cursor: default; opacity: .55; }
+button:disabled, select:disabled { cursor: default; opacity: .5; }
 a { color: inherit; }
 h1, h2, h3, h4, p, ol, ul, dl, dd { margin: 0; }
-:focus-visible { outline: 2px solid #7354e5; outline-offset: 3px; }
-.sr-only, .skip-link:not(:focus) {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+::selection { color: #672d1c; background: #ecd3bc; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.sr-only, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip-link { position: fixed; z-index: 10; top: 12px; left: 12px; padding: 12px 18px; background: var(--paper); border: 1px solid var(--accent); border-radius: 6px; }
+
+@media (max-width: 760px) {
+  :root { --header-height: 64px; --rail-width: 0px; --gutter: 20px; }
 }
-.skip-link {
-  position: fixed;
-  z-index: 10;
-  top: 12px;
-  left: 12px;
-  padding: 10px 16px;
-  background: var(--lime);
-  border-radius: 7px;
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }
