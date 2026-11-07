@@ -3,7 +3,7 @@ import gsap from 'gsap'
 import type { Conversation } from '../../../entities/quality'
 import { Icon } from '../../../shared/ui/Icon'
 
-export type EvidenceTarget = { id: string; criterionId: string; original?: boolean; origin: HTMLButtonElement }
+export type EvidenceTarget = { id: string; criterionId: string; original?: boolean; source?: string; origin: HTMLButtonElement }
 
 function focusEvidence(element: HTMLElement) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches

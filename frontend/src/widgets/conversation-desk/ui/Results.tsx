@@ -1,7 +1,8 @@
 import { gradeLabel } from '../../../entities/quality'
-import type { Conversation, Evaluation, Grade, Score, Turn } from '../../../entities/quality'
+import type { Conversation, Evaluation, Score } from '../../../entities/quality'
 import { ReviewCriterion } from '../../../features/review-criterion'
 import { Icon } from '../../../shared/ui/Icon'
+import { EvidenceLinks } from './EvidenceLinks'
 import type { EvidenceTarget } from './Transcript'
 
 const points = (value: number | null) => value === null ? '—' : value.toFixed(2)
@@ -11,7 +12,7 @@ function ScoreOverview({ score, itemCount }: { score: Score; itemCount: number }
     <div className="score-copy">
       <p className="kicker">Overall quality</p>
       <div className="score-number">{points(score.total)}<span>{score.total !== null && '/ 100'}</span></div>
-      <p className="score-caption">{itemCount} {itemCount === 1 ? 'criterion' : 'criteria'} evaluated</p>
+      <p className="score-caption">{score.total === null ? 'No applicable weighted criteria' : `${itemCount} ${itemCount === 1 ? 'criterion' : 'criteria'} evaluated`}</p>
       <span className={`flag-label${score.serious_error ? ' flag-raised' : ''}`}><Icon name={score.serious_error ? 'flag' : 'shield'} size={13} /> {score.serious_error ? 'Serious error flagged' : 'No serious errors'}</span>
     </div>
     {score.total !== null && <div className="score-dial" aria-hidden="true">
@@ -22,27 +23,6 @@ function ScoreOverview({ score, itemCount }: { score: Score; itemCount: number }
       </svg>
       <span className="dial-center"><Icon name="waveform" size={26} /><span>QUALITY</span></span>
     </div>}
-  </div>
-}
-
-function EvidenceLinks({ grade, turns, target, original, onEvidence }: {
-  grade: Grade
-  turns: Map<string, Turn>
-  target: EvidenceTarget | null
-  original?: boolean
-  onEvidence: (target: EvidenceTarget) => void
-}) {
-  const { criterion_id: criterionId } = grade
-  return <div className="evidence-links">
-    {grade.evidence_turn_ids.map((id) => {
-      const turn = turns.get(id)
-      const current = target?.id === id && target.criterionId === criterionId && target.original === original
-      return turn && <button className="evidence-link" type="button" key={id} aria-current={current ? 'true' : undefined}
-        onClick={(event) => onEvidence({ id, criterionId, original, origin: event.currentTarget })}
-        aria-label={`Show ${criterionId} ${original ? 'original ' : ''}evidence, turn ${id} at ${turn.timestamp}`}>
-        <Icon name="link" size={15} /> <span>{id} · {turn.timestamp}</span><Icon name="arrowUpRight" size={13} />
-      </button>
-    })}
   </div>
 }
 
@@ -69,7 +49,8 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
     <div className="result-meta">
       <span className="version-chip">{checklist.version_id}</span>
       <span className="model-label">{model.provider} / {model.model}</span>
-      {evaluation.mode === 'fixture' && <span className="mode-badge mode-synthetic">Synthetic result</span>}
+      <span className={`mode-badge ${evaluation.mode === 'fixture' ? 'mode-synthetic' : 'mode-live'}`}>{evaluation.mode === 'fixture' ? 'Synthetic result' : 'Live result'}</span>
+      <span className="run-identifier">Run {evaluation.id}</span>
     </div>
     {final.sections.length > 0 && <details className="section-breakdown">
       <summary><Icon name="layers" size={17} /> Section scores <Icon name="down" size={16} /></summary>
