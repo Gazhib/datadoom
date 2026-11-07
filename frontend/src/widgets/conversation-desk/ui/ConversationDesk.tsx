@@ -89,8 +89,13 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
   return <section className="desk" aria-labelledby="conversation-heading">
     <header className="desk-heading">
       <div>
-        <h1 id="conversation-heading">{view === 'appeals' ? 'Appeals' : 'Conversation analysis'}</h1>
-        <div className="conversation-tags"><span><Icon name={isCall ? 'phone' : 'chat'} size={17} /> {isCall ? 'Call' : 'Chat'} <strong>{summary.conversation_id}</strong></span><span>{languages[summary.language] ?? summary.language}</span>{recording && duration !== null && <span>{formatClock(duration)}</span>}<span>Group {summary.group_id}</span></div>
+        <h1 id="conversation-heading">{view === 'appeals' ? 'Appeals' : 'Conversation review'}</h1>
+        <div className="conversation-tags">
+          <span className="conversation-ref"><Icon name={isCall ? 'phone' : 'chat'} size={15} /> {isCall ? 'Call' : 'Chat'} <strong>{summary.conversation_id}</strong></span>
+          <span>{languages[summary.language] ?? summary.language}</span>
+          {recording && duration !== null && <span><Icon name="clock" size={14} /> {formatClock(duration)}</span>}
+          <span>Group {summary.group_id}</span>
+        </div>
       </div>
       {view === 'analysis' && <div className="run-controls">
         <label className="version-control"><span className="field-label">Checklist version</span>
@@ -107,7 +112,7 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
     {conversation.error && <div className="desk-message"><p role="alert">{conversation.error}</p><button className="button button-outline" onClick={conversation.refresh}>Retry transcript</button></div>}
     {!conversation.data && conversation.loading && <p className="desk-message" role="status">Loading transcript…</p>}
     {conversation.data && view === 'appeals' && <section className="pane appeals-pane" aria-labelledby="appeals-heading">
-      <header className="pane-heading"><div><h2 id="appeals-heading">Appeals for this dialogue</h2>{evaluation && <p className="form-note">Checklist {evaluation.checklist.version_id}</p>}</div>{runHistory}</header>
+      <header className="pane-heading"><div><h2 id="appeals-heading">Appeals for this conversation</h2>{evaluation && <p className="form-note">Checklist {evaluation.checklist.version_id}</p>}</div>{runHistory}</header>
       {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>Retry history</button></div>}
       {history.loading && <p className="empty-detail" role="status">Loading evaluation history…</p>}
       {evaluation?.appeals.length ? <ul className="appeal-list">
@@ -121,15 +126,12 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
           </li>
         })}
       </ul> : !history.error && !history.loading && <div className="empty-detail">
-        <h3>No appeals on this evaluation</h3><p>Open Analytics to appeal a grade on a specific criterion.</p>
-        <button className="button button-outline" type="button" onClick={onAnalysis}>Open Analytics</button>
+        <h3>No appeals on this evaluation</h3><p>Open the conversation review to appeal a grade on a specific criterion.</p>
+        <button className="button button-outline" type="button" onClick={onAnalysis}>Open review</button>
       </div>}
       {!!evaluation?.appeals.length && <div className="appeals-footer"><button className="button button-outline" type="button" onClick={onAnalysis}>View scores and evidence</button></div>}
     </section>}
     {conversation.data && view === 'analysis' && <>
-      {recording && <RecordingPlayer key={recording} url={recording} turns={conversation.data.turns} duration={duration}
-        offsets={demoRecordingOffsets(conversation.data)} target={target} onDuration={setDuration} />}
-      {isCall && !recording && <div className="recording-unavailable pane"><Icon name="phone" size={18} /> Call recording unavailable. You can still review the transcript.</div>}
       {running && <p className="run-notice" role="status"><span className="spinner" /> Evaluating with {attemptedVersion?.version_id}…{evaluation && ' Saved results remain available.'}</p>}
       {runError && <div className="evaluation-error">
         <p className="inline-error" role="alert">{runError}</p>
@@ -141,7 +143,12 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
         <a href="#results-heading"><Icon name="activity" size={17} /> Quality score</a>
       </nav>
       <div className="desk-columns">
-        <Transcript conversation={conversation.data} target={target} />
+        <div className="conversation-source">
+          {recording && <RecordingPlayer key={recording} url={recording} turns={conversation.data.turns} duration={duration}
+            offsets={demoRecordingOffsets(conversation.data)} target={target} onDuration={setDuration} />}
+          {isCall && !recording && <div className="recording-unavailable pane"><Icon name="phone" size={18} /> Call recording unavailable. You can still review the transcript.</div>}
+          <Transcript conversation={conversation.data} target={target} />
+        </div>
         <section className="results pane" aria-labelledby="results-heading">
           <header className="pane-heading">
             <h2 id="results-heading" tabIndex={-1}>Quality score</h2>

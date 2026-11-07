@@ -146,16 +146,16 @@ function ChecklistEditor({ source, onClose, onSaved }: {
   </Dialog>
 }
 
-export function EditChecklist({ checklist, disabled, onSaved, rail = false }: {
+export function EditChecklist({ checklist, disabled, onSaved, navigation = false }: {
   checklist?: Checklist
   disabled: boolean
   onSaved: (checklist: Checklist) => void
-  rail?: boolean
+  navigation?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   return <>
-    <button className={rail ? 'rail-link' : 'button button-outline'} type="button" aria-haspopup="dialog" disabled={disabled || !checklist} onClick={() => setEditing(true)}>
-      <Icon name="checklist" size={20} /><span>{rail ? 'Checklists' : 'Edit checklist'}</span>
+    <button className={navigation ? 'nav-button' : 'button button-outline'} type="button" aria-haspopup="dialog" disabled={disabled || !checklist} onClick={() => setEditing(true)}>
+      <Icon name="checklist" size={17} /><span>{navigation ? 'Checklists' : 'Edit checklist'}</span>
     </button>
     {editing && checklist && <ChecklistEditor source={checklist} onClose={() => setEditing(false)} onSaved={onSaved} />}
   </>
