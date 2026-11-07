@@ -1,0 +1,10 @@
+[
+  {"criterion_id": "C01", "value": "yes", "reason": "Оператор поздоровался на русском и представился.", "evidence_turn_ids": ["t2"]},
+  {"criterion_id": "C02", "value": "na", "reason": "Для ответа на оба общих вопроса исходных данных достаточно.", "evidence_turn_ids": ["t1"]},
+  {"criterion_id": "C03", "value": "na", "reason": "Вопрос о демо-чате не требует идентификации.", "evidence_turn_ids": ["t1"]},
+  {"criterion_id": "C04", "value": 15, "reason": "График указан, вопрос о языке остался без ответа.", "evidence_turn_ids": ["t1", "t3"]},
+  {"criterion_id": "C05", "value": "yes", "reason": "Оператор общался вежливо.", "evidence_turn_ids": ["t2", "t3"]},
+  {"criterion_id": "C06", "value": 7, "reason": "Ответ понятен, но вопрос о языке остался вне последовательности ответа.", "evidence_turn_ids": ["t1", "t3"]},
+  {"criterion_id": "C07", "value": "no", "reason": "Чат закрыт без прощания.", "evidence_turn_ids": ["t3", "t4"]},
+  {"criterion_id": "C08", "value": "no", "reason": "В проверенных репликах грубых ошибок не выявлено.", "evidence_turn_ids": ["t2", "t3"]}
+]
