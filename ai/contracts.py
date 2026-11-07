@@ -123,7 +123,8 @@ class ProviderGrades(ContractModel):
 
 
 class Model(ContractModel):
-    provider: ProviderName
+    # "panel" marks grades combined from several judges; model lists each provider/model.
+    provider: ProviderName | Literal["panel"]
     model: NonBlank
 
 

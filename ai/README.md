@@ -1,12 +1,26 @@
 # Datadoom AI evaluator
 
-T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and checklist and returns live model metadata and one grade per criterion in checklist order. The backend owns scoring.
+T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and checklist, has a panel of three judges grade it in parallel, and returns one combined grade per criterion in checklist order. The backend owns scoring.
 
-## Provider configuration
+## Judge panel
 
-Set `EVALUATOR_PROVIDER` in the evaluator process to choose where inference runs. The default is `llama.cpp`. Each request uses the selected provider for inference and any repair, and the result identifies the provider and model used.
+[`judges.yaml`](judges.yaml) defines the panel. By default it has three local Ollama judges from different model families, so their mistakes are less likely to coincide: `qwen3:1.7b`, `gemma3:4b` and `phi4-mini`. Each judge gets the same prompt, schema and one repair attempt. The evaluator combines their grades per criterion:
 
-| `EVALUATOR_PROVIDER` | Required settings | Default model | Model override |
+- **Yes/no and N/A:** the value most judges chose. A tie goes to the judge listed first, so list the judge you trust most first.
+- **Scale:** N/A is decided by the same vote. Otherwise the result is the lower median of the numeric grades, which is always a value some judge gave.
+- **Reason and evidence:** the reason comes from the first judge that agrees with the result. Evidence merges the turns cited by every agreeing judge, most-cited first.
+
+At least `quorum` judges must return valid grades. The default is a majority, 2 of 3. Judges that fail or miss the shared `timeout_seconds` deadline (55 s) are left out. Below quorum, the request fails with the shared error when every judge failed the same way, or with `502 quorum_not_met` listing each judge's error code. The result model is `panel` with the contributing judges, for example `ollama/qwen3:1.7b + ollama/gemma3:4b + ollama/phi4-mini`. The evaluator logs each judge's timing and token use, the mean agreement, and the votes for every criterion where the judges disagreed.
+
+Change a judge in the YAML or with variables in the root `.env`. The YAML reads `${NAME}` and `${NAME:-default}` placeholders, so `JUDGE_2_PROVIDER=openai` and `JUDGE_2_MODEL=gpt-5.4-mini` replace the second judge without editing the file. Set the model whenever you change a provider. Each judge accepts `name`, `provider`, `model`, `url`, `api_key_env` and `temperature`. The file never holds keys: `api_key_env` names the variable that holds one. Compose mounts the file into the evaluator and every evaluation reads it again, so edits apply without a rebuild. Set `EVALUATOR_JUDGES_FILE` to use another file.
+
+Three judges triple the inference work. On CPU, three local models compete for the same cores and memory, and the full checklist already took 19–45 s with one model (see below). Make sure Ollama can keep all three models loaded and has enough RAM. Otherwise use a GPU or mix in hosted judges. Through the backend, the deadline must stay below `UPSTREAM_TIMEOUT_SECONDS`, which is at most 60 s.
+
+## Providers
+
+When a judge leaves `model`, `url` or `api_key_env` unset, the evaluator uses the provider-wide variables below, then the built-in default.
+
+| `provider` | Required settings | Default model | Model override |
 | --- | --- | --- | --- |
 | `llama.cpp` | Local model server. `LLAMA_CPP_URL` defaults to `http://127.0.0.1:8080`. | `Qwen3-1.7B-Q4_K_M` | `LLAMA_CPP_MODEL` |
 | `ollama` | Local Ollama server. `OLLAMA_URL` defaults to `http://127.0.0.1:11434` outside Docker. | `qwen3:1.7b` | `OLLAMA_MODEL` |
@@ -28,21 +42,19 @@ python -m venv ai/.venv
 .\ai\.venv\Scripts\python.exe -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
-For Ollama, set `$env:EVALUATOR_PROVIDER = 'ollama'` before starting Uvicorn. For a hosted provider, set its environment variables before starting Uvicorn. For example, in PowerShell 7 use `$env:EVALUATOR_PROVIDER = 'openai'` and `$env:OPENAI_API_KEY = Read-Host 'OpenAI API key' -MaskInput`. For llama.cpp, start the local model server using the steps below. Restart the evaluator after changing its environment.
+The default panel needs Ollama with `qwen3:1.7b`, `gemma3:4b` and `phi4-mini` pulled. For a hosted judge, set its variables before starting Uvicorn. For example, in PowerShell 7 use `$env:JUDGE_2_PROVIDER = 'openai'`, `$env:JUDGE_2_MODEL = 'gpt-5.4-mini'` and `$env:OPENAI_API_KEY = Read-Host 'OpenAI API key' -MaskInput`. For llama.cpp, start one model server per judge using the steps below and set each judge's `url`. Restart the evaluator after changing its environment. YAML edits apply to the next evaluation.
 
 ## Use Ollama with Docker
 
-Run `ollama pull qwen3:1.7b` if the model has not been downloaded. Keep the Ollama service running. The interactive `ollama run` prompt can be closed because Datadoom uses Ollama's HTTP server.
+Run `ollama pull qwen3:1.7b`, `ollama pull gemma3:4b` and `ollama pull phi4-mini` if the models have not been downloaded. Keep the Ollama service running. The interactive `ollama run` prompt can be closed because Datadoom uses Ollama's HTTP server.
 
-Add these settings to the ignored `.env` file at the repository root.
+Compose points the judges at `http://host.docker.internal:11434`. To use another Ollama server, set it in the ignored `.env` file at the repository root.
 
 ```dotenv
-EVALUATOR_PROVIDER=ollama
 OLLAMA_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=qwen3:1.7b
 ```
 
-Rebuild the evaluator using the same Compose project as your existing Datadoom stack. Import a JSON transcript, open the conversation and select **Run evaluation**. The result identifies the model as `ollama / qwen3:1.7b`. Datadoom sends a grade schema and disables Qwen's thinking output through [Ollama's chat API](https://docs.ollama.com/api/chat).
+Rebuild the evaluator using the same Compose project as your existing Datadoom stack. Import a JSON transcript, open the conversation and select **Run evaluation**. The result identifies the model as `panel / ollama/qwen3:1.7b + ollama/gemma3:4b + ollama/phi4-mini`. Datadoom sends a grade schema and disables Qwen's thinking output through [Ollama's chat API](https://docs.ollama.com/api/chat).
 
 ## Start the local model server
 
