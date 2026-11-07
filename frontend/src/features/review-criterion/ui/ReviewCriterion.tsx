@@ -111,20 +111,21 @@ function ReviewForm({ evaluationId, criterion, original, turns, appeal, onUpdate
   </Dialog>
 }
 
-export function ReviewCriterion({ disabled, ...props }: ReviewProps & { disabled: boolean }) {
+export function ReviewCriterion({ disabled, compact = false, ...props }: ReviewProps & { disabled: boolean; compact?: boolean }) {
   const [open, setOpen] = useState(false)
   const { appeal } = props
   const decision = appeal?.decision
 
-  return <div className="criterion-review">
-    {appeal && <div className="review-trail">
+  return <div className={compact ? 'criterion-review review-compact' : 'criterion-review'}>
+    {appeal && !compact && <div className="review-trail">
       <p role="status" className="review-status">
         {appeal.status === 'open' ? 'Appeal open' : decision?.action === 'change' ? 'Grade changed' : 'Grade confirmed'}
       </p>
       <p className="review-note"><strong>Appeal comment</strong> {appeal.comment}</p>
       {decision && <p className="review-note"><strong>Decision reason</strong> {decision.reason}</p>}
     </div>}
-    {appeal?.status !== 'resolved' && <button className="button button-outline review-button" type="button" disabled={disabled} onClick={() => setOpen(true)}>
+    {compact && appeal?.status === 'resolved' && <span className="review-status">{decision?.action === 'change' ? 'Grade changed' : 'Grade confirmed'}</span>}
+    {appeal?.status !== 'resolved' && <button className={compact ? 'button button-outline' : 'button button-outline review-button'} type="button" disabled={disabled} onClick={() => setOpen(true)}>
       {appeal ? 'Resolve appeal' : 'Appeal grade'}
     </button>}
     {open && <ReviewForm {...props} onClose={() => setOpen(false)} />}

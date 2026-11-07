@@ -52,7 +52,10 @@ function readStore(): Store {
   }
   return {
     conversations: demoConversations,
-    evaluations: [makeEvaluation(demoConversations[0], defaultChecklist, 'fixture-001')],
+    evaluations: [
+      makeEvaluation(demoConversations[0], defaultChecklist, 'fixture-001'),
+      makeEvaluation(demoConversations[2], defaultChecklist, 'fixture-003'),
+    ],
     checklists: [defaultChecklist],
   }
 }

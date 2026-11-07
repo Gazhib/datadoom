@@ -1,6 +1,6 @@
 import { get, post } from '../../../shared/api/http'
 import { isMockMode } from '../../../shared/config/apiMode'
-import type { QualityApi } from '../model/contract'
+import type { Conversation, QualityApi } from '../model/contract'
 
 const liveApi: QualityApi = {
   importConversations: (input) => post('/imports', input),
@@ -24,3 +24,7 @@ const liveApi: QualityApi = {
 export const qualityApi: QualityApi = isMockMode
   ? (await import('./mock')).mockApi
   : liveApi
+
+export const demoRecordingOffsets: (conversation: Conversation) => ReadonlyMap<string, number> | undefined = isMockMode
+  ? (await import('./fixtures')).demoRecordingOffsets
+  : () => undefined
