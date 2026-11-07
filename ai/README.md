@@ -9,6 +9,7 @@ Set `EVALUATOR_PROVIDER` in the evaluator process to choose where inference runs
 | `EVALUATOR_PROVIDER` | Required settings | Default model | Model override |
 | --- | --- | --- | --- |
 | `llama.cpp` | Local model server. `LLAMA_CPP_URL` defaults to `http://127.0.0.1:8080`. | `Qwen3-1.7B-Q4_K_M` | `LLAMA_CPP_MODEL` |
+| `ollama` | Local Ollama server. `OLLAMA_URL` defaults to `http://127.0.0.1:11434` outside Docker. | `qwen3:1.7b` | `OLLAMA_MODEL` |
 | `openai` | `OPENAI_API_KEY` | `gpt-5.4-mini` | `OPENAI_MODEL` |
 | `qwen` | `DASHSCOPE_API_KEY` and `QWEN_BASE_URL` | `qwen-plus` | `QWEN_MODEL` |
 | `gemini` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `gemini-3.1-flash-lite` | `GEMINI_MODEL` |
@@ -27,7 +28,21 @@ python -m venv ai/.venv
 .\ai\.venv\Scripts\python.exe -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
-For a hosted provider, set its environment variables before starting Uvicorn. For example, in PowerShell 7 use `$env:EVALUATOR_PROVIDER = 'openai'` and `$env:OPENAI_API_KEY = Read-Host 'OpenAI API key' -MaskInput`. For llama.cpp, start the local model server using the steps below. Restart the evaluator after changing its environment.
+For Ollama, set `$env:EVALUATOR_PROVIDER = 'ollama'` before starting Uvicorn. For a hosted provider, set its environment variables before starting Uvicorn. For example, in PowerShell 7 use `$env:EVALUATOR_PROVIDER = 'openai'` and `$env:OPENAI_API_KEY = Read-Host 'OpenAI API key' -MaskInput`. For llama.cpp, start the local model server using the steps below. Restart the evaluator after changing its environment.
+
+## Use Ollama with Docker
+
+Run `ollama pull qwen3:1.7b` if the model has not been downloaded. Keep the Ollama service running. The interactive `ollama run` prompt can be closed because Datadoom uses Ollama's HTTP server.
+
+Add these settings to the ignored `.env` file at the repository root.
+
+```dotenv
+EVALUATOR_PROVIDER=ollama
+OLLAMA_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=qwen3:1.7b
+```
+
+Rebuild the evaluator using the same Compose project as your existing Datadoom stack. Import a JSON transcript, open the conversation and select **Run evaluation**. The result identifies the model as `ollama / qwen3:1.7b`. Datadoom sends a grade schema and disables Qwen's thinking output through [Ollama's chat API](https://docs.ollama.com/api/chat).
 
 ## Start the local model server
 

@@ -9,6 +9,8 @@ from .contracts import ProviderName
 
 DEFAULT_LLAMA_URL = "http://127.0.0.1:8080"
 DEFAULT_LLAMA_MODEL = "Qwen3-1.7B-Q4_K_M"
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
+DEFAULT_OLLAMA_MODEL = "qwen3:1.7b"
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,13 @@ class Provider:
             }
 
         payload = {"model": self.model, "messages": messages, "stream": False}
+        if self.name == "ollama":
+            return {
+                **payload,
+                "format": schema,
+                "think": False,
+                "options": {"temperature": 0, "num_predict": max_tokens},
+            }
         if self.name == "openai":
             return {
                 **payload,
@@ -74,6 +83,16 @@ class Provider:
         }
 
     def read_completion(self, response: dict) -> Completion:
+        if self.name == "ollama":
+            content = None
+            if response.get("done") is True and response.get("done_reason") == "stop":
+                content = response["message"]["content"]
+            return Completion(
+                model=response["model"],
+                content=content,
+                prompt_tokens=token_count(response, "prompt_eval_count"),
+                completion_tokens=token_count(response, "eval_count"),
+            )
         if self.name == "gemini":
             candidates = response.get("candidates") or []
             candidate = candidates[0] if candidates else {}
@@ -121,6 +140,11 @@ def configured_provider() -> Provider:
         base = os.environ.get("LLAMA_CPP_URL", DEFAULT_LLAMA_URL)
         endpoint = endpoint_url(base, "/v1/chat/completions", "LLAMA_CPP_URL", ("http", "https"))
         return Provider(name, model, endpoint)
+    if name == "ollama":
+        model = model_name("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+        base = os.environ.get("OLLAMA_URL", DEFAULT_OLLAMA_URL)
+        endpoint = endpoint_url(base, "/api/chat", "OLLAMA_URL", ("http", "https"))
+        return Provider(name, model, endpoint)
     if name == "openai":
         model = model_name("OPENAI_MODEL", "gpt-5.4-mini")
         endpoint = httpx.URL("https://api.openai.com/v1/chat/completions")
@@ -136,7 +160,7 @@ def configured_provider() -> Provider:
             raise ValueError("Set GEMINI_MODEL to a model ID without a path.")
         endpoint = httpx.URL(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent")
         return Provider(name, model, endpoint, api_key("GEMINI_API_KEY", "GOOGLE_API_KEY"))
-    raise ValueError("Set EVALUATOR_PROVIDER to llama.cpp, openai, qwen, or gemini.")
+    raise ValueError("Set EVALUATOR_PROVIDER to llama.cpp, ollama, openai, qwen, or gemini.")
 
 
 def model_name(variable: str, default: str) -> str:
