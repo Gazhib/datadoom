@@ -1,0 +1,81 @@
+{
+  "request": {
+    "conversation": {
+      "key": "kz-greeting",
+      "group_id": "synthetic-harness",
+      "conversation_id": "kz-greeting",
+      "language": "KZ",
+      "channel": "voice call",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Сәлеметсіз бе. Анықтама керек."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Сәлеметсіз бе! Менің атым Айдана. Қандай анықтама керек?"
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "client",
+          "text": "Жұмыс уақыты туралы."
+        },
+        {
+          "id": "t4",
+          "timestamp": "2026-11-01T09:00:08+00:00",
+          "speaker": "operator",
+          "text": "Кеңсе тоғыздан алтыға дейін ашық."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C01",
+          "label": "Установление контакта",
+          "instruction": "Yes if the operator greets in the client's language and introduces themselves in the first response.",
+          "kind": "binary",
+          "weight": 10,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Начало и понимание запроса"
+        },
+        {
+          "id": "C02",
+          "label": "Выявление потребности",
+          "instruction": "Yes if the operator uses known details and clarifies missing information before answering.",
+          "kind": "binary",
+          "weight": 15,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The customer provided enough information at the start.",
+          "section": "Начало и понимание запроса"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C01": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    },
+    "C02": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2",
+        "t3"
+      ]
+    }
+  }
+}

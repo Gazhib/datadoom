@@ -1,0 +1,91 @@
+{
+  "request": {
+    "conversation": {
+      "key": "ru-hangup-no-request",
+      "group_id": "synthetic-harness",
+      "conversation_id": "ru-hangup-no-request",
+      "language": "RU",
+      "channel": "voice call",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "operator",
+          "text": "Здравствуйте, меня зовут Тимур."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "system",
+          "text": "Соединение прервано до ответа клиента."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C01",
+          "label": "Установление контакта",
+          "instruction": "Yes if the operator greets in the client's language and introduces themselves in the first response.",
+          "kind": "binary",
+          "weight": 10,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Начало и понимание запроса"
+        },
+        {
+          "id": "C04",
+          "label": "Корректная и полная консультация",
+          "instruction": "20: all material questions answered or a correct next step given. 15: main issue resolved with a minor omission. 10: material issue still open. 5: generic guidance without an actionable next step. 0: no substantive answer or a key error.",
+          "kind": "scale",
+          "weight": 20,
+          "scale": [
+            0,
+            5,
+            10,
+            15,
+            20
+          ],
+          "allow_na": true,
+          "na_rule": "The chat ended before the client made a request.",
+          "section": "Безопасность и решение"
+        },
+        {
+          "id": "C07",
+          "label": "Завершение",
+          "instruction": "Yes if the operator summarizes or offers further help and says goodbye.",
+          "kind": "binary",
+          "weight": 5,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The dialogue ended before the operator could close it.",
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C01": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t1"
+      ]
+    },
+    "C04": {
+      "value": "na",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    },
+    "C07": {
+      "value": "na",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    }
+  }
+}

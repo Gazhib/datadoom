@@ -1,0 +1,58 @@
+{
+  "request": {
+    "conversation": {
+      "key": "kz-no-closure",
+      "group_id": "synthetic-harness",
+      "conversation_id": "kz-no-closure",
+      "language": "KZ",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Есепті алдым. Тағы көмек қажет емес."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "ОК."
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "system",
+          "text": "Оператор чатты жапты."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C07",
+          "label": "Завершение",
+          "instruction": "Yes if the operator summarizes or offers further help and says goodbye.",
+          "kind": "binary",
+          "weight": 5,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The dialogue ended before the operator could close it.",
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C07": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t2",
+        "t3"
+      ]
+    }
+  }
+}

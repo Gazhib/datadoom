@@ -1,0 +1,51 @@
+{
+  "request": {
+    "conversation": {
+      "key": "ru-closure",
+      "group_id": "synthetic-harness",
+      "conversation_id": "ru-closure",
+      "language": "RU",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Спасибо, теперь вижу отчёт."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Рад, что отчёт появился. Могу ещё чем-нибудь помочь? До свидания."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C07",
+          "label": "Завершение",
+          "instruction": "Yes if the operator summarizes or offers further help and says goodbye.",
+          "kind": "binary",
+          "weight": 5,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The dialogue ended before the operator could close it.",
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C07": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t2"
+      ]
+    }
+  }
+}

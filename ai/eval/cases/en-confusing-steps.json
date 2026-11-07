@@ -1,0 +1,94 @@
+{
+  "request": {
+    "conversation": {
+      "key": "en-confusing-steps",
+      "group_id": "synthetic-harness",
+      "conversation_id": "en-confusing-steps",
+      "language": "EN",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "How do I download a statement?"
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Open the Settings tab. Do not open Settings. Use Settings before signing in."
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "client",
+          "text": "I can't follow that. Where am I supposed to go?"
+        },
+        {
+          "id": "t4",
+          "timestamp": "2026-11-01T09:00:08+00:00",
+          "speaker": "operator",
+          "text": "Do what I said. Sign in before signing in."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C04",
+          "label": "Корректная и полная консультация",
+          "instruction": "20: all material questions answered or a correct next step given. 15: main issue resolved with a minor omission. 10: material issue still open. 5: generic guidance without an actionable next step. 0: no substantive answer or a key error.",
+          "kind": "scale",
+          "weight": 20,
+          "scale": [
+            0,
+            5,
+            10,
+            15,
+            20
+          ],
+          "allow_na": true,
+          "na_rule": "The chat ended before the client made a request.",
+          "section": "Безопасность и решение"
+        },
+        {
+          "id": "C06",
+          "label": "Управление диалогом, скорость и грамотность",
+          "instruction": "10: clear and coherent, with a warning for evident waits. 7: one noticeable lapse with the conversation still understandable. 4: client needs clarification because of wording or sequence. 0: incoherent or contradictory exchange that is hard to follow.",
+          "kind": "scale",
+          "weight": 15,
+          "scale": [
+            0,
+            4,
+            7,
+            10
+          ],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C04": {
+      "value": 0,
+      "evidence_turn_ids": [
+        "t2",
+        "t4"
+      ]
+    },
+    "C06": {
+      "value": 0,
+      "evidence_turn_ids": [
+        "t2",
+        "t3",
+        "t4"
+      ]
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "request": {
+    "conversation": {
+      "key": "en-empathy-missed",
+      "group_id": "synthetic-harness",
+      "conversation_id": "en-empathy-missed",
+      "language": "EN",
+      "channel": "voice call",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "I've spent a week trying to download my statement and this is frustrating."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Go to Documents and click Download."
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "client",
+          "text": "That fixed it."
+        },
+        {
+          "id": "t4",
+          "timestamp": "2026-11-01T09:00:08+00:00",
+          "speaker": "operator",
+          "text": "I'm glad you have it. Can I help with anything else? Goodbye."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C05",
+          "label": "Эмпатия и клиентоориентированность",
+          "instruction": "Yes for politeness and, when the client expresses dissatisfaction or inconvenience, acknowledgment of the specific problem.",
+          "kind": "binary",
+          "weight": 15,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Ведение и завершение диалога"
+        },
+        {
+          "id": "C07",
+          "label": "Завершение",
+          "instruction": "Yes if the operator summarizes or offers further help and says goodbye.",
+          "kind": "binary",
+          "weight": 5,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The dialogue ended before the operator could close it.",
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C05": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t1",
+        "t2"
+      ]
+    },
+    "C07": {
+      "value": "yes",
+      "evidence_turn_ids": [
+        "t4"
+      ]
+    }
+  }
+}

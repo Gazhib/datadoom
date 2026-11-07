@@ -1,0 +1,52 @@
+{
+  "request": {
+    "conversation": {
+      "key": "ru-edit-no",
+      "group_id": "synthetic-harness",
+      "conversation_id": "ru-edit-no",
+      "language": "RU",
+      "channel": "agent chat",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Здравствуйте. Когда открывается биржа?"
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "Здравствуйте, меня зовут Айгуль. Биржа открывается в девять."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Synthetic edited checklist",
+      "version_id": "edited-c05",
+      "criteria": [
+        {
+          "id": "C05",
+          "label": "Оператор явно предложил ответить на английском",
+          "instruction": "Да, только если оператор явно предложил ответить на английском.",
+          "kind": "binary",
+          "weight": 15,
+          "scale": [],
+          "allow_na": false,
+          "na_rule": null,
+          "section": "Ведение и завершение диалога"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C05": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t1",
+        "t2"
+      ]
+    }
+  }
+}

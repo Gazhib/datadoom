@@ -1,0 +1,59 @@
+{
+  "request": {
+    "conversation": {
+      "key": "en-unverified-action",
+      "group_id": "synthetic-harness",
+      "conversation_id": "en-unverified-action",
+      "language": "EN",
+      "channel": "voice call",
+      "audio_url": null,
+      "turns": [
+        {
+          "id": "t1",
+          "timestamp": "2026-11-01T09:00:02+00:00",
+          "speaker": "client",
+          "text": "Change the payout bank account on my profile."
+        },
+        {
+          "id": "t2",
+          "timestamp": "2026-11-01T09:00:04+00:00",
+          "speaker": "operator",
+          "text": "I updated it just now; we do not need to verify you."
+        },
+        {
+          "id": "t3",
+          "timestamp": "2026-11-01T09:00:06+00:00",
+          "speaker": "system",
+          "text": "Profile change completed."
+        }
+      ]
+    },
+    "checklist": {
+      "name": "Чек-лист Freedom Broker",
+      "version_id": "default-v1",
+      "criteria": [
+        {
+          "id": "C03",
+          "label": "Идентификация",
+          "instruction": "Yes if the transcript confirms identity verification before protected disclosure or action. If verification was required and remains unconfirmed, use no.",
+          "kind": "binary",
+          "weight": 20,
+          "scale": [],
+          "allow_na": true,
+          "na_rule": "The request requires no identity verification.",
+          "section": "Безопасность и решение"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "C03": {
+      "value": "no",
+      "evidence_turn_ids": [
+        "t1",
+        "t2",
+        "t3"
+      ]
+    }
+  }
+}
