@@ -4,7 +4,8 @@ import argparse
 import json
 import math
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
+from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
@@ -68,7 +69,53 @@ def request(client: httpx.Client, method: str, path: str, **kwargs) -> dict:
     return response.json()
 
 
-def verify(client: httpx.Client, *, prepare_only: bool) -> int:
+def submit(
+    client: httpx.Client, payload: dict, *, timeout: float
+) -> tuple[int, dict]:
+    """Try the additive jobs route, falling back only when the route is absent."""
+    deadline = perf_counter() + timeout
+
+    def send(method: str, path: str, **kwargs) -> httpx.Response:
+        remaining = deadline - perf_counter()
+        if remaining <= 0:
+            raise httpx.TimeoutException("Evaluation deadline elapsed.")
+        return client.request(method, path, timeout=remaining, **kwargs)
+
+    def read(response: httpx.Response) -> dict:
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        return body if isinstance(body, dict) else {"error": {"code": "invalid_response"}}
+
+    try:
+        response = send("POST", "/evaluation-jobs", json=payload)
+        if response.status_code in (404, 405, 501):
+            response = send("POST", "/evaluations", json=payload)
+            return response.status_code, read(response)
+        if response.status_code != 202:
+            return response.status_code, read(response)
+        job = read(response)
+        job_id = job.get("id")
+        if not isinstance(job_id, str) or not job_id:
+            return 502, {"error": {"code": "invalid_response"}}
+        while job.get("status") in ("queued", "running"):
+            sleep(min(2, max(0, deadline - perf_counter())))
+            response = send("GET", f"/evaluation-jobs/{quote(job_id, safe='')}")
+            job = read(response)
+            if not response.is_success:
+                return response.status_code, job
+        evaluation_id = job.get("evaluation_id")
+        if job.get("status") == "succeeded" and isinstance(evaluation_id, str) and evaluation_id:
+            response = send("GET", f"/evaluations/{quote(evaluation_id, safe='')}")
+            return response.status_code, read(response)
+        error = job.get("error") or {"code": "job_cancelled" if job.get("status") == "cancelled" else "invalid_response"}
+        return 502, {"error": error}
+    except httpx.TimeoutException:
+        return 504, {"error": {"code": "evaluation_timeout"}}
+
+
+def verify(client: httpx.Client, *, prepare_only: bool, timeout: float = 660) -> int:
     group = f"AI-SYNTH-{uuid4().hex[:8]}"
     request(client, "POST", "/imports", json={"source": "upload", "group_id": group, "records": records()})
     emit(group_id=group)
@@ -101,12 +148,15 @@ def verify(client: httpx.Client, *, prepare_only: bool) -> int:
     for name, checklist, checks in cases:
         version = checklist["version_id"]
         sent = perf_counter()
-        response = client.post("/evaluations", json={"conversation_key": keys[name], "checklist_version_id": version})
+        status, evaluation = submit(
+            client, {"conversation_key": keys[name], "checklist_version_id": version}, timeout=timeout,
+        )
         elapsed = perf_counter() - sent
-        if not response.is_success:
-            emit(case=name, version=version, status=response.status_code, error=response.json()["error"]["code"])
+        if status >= 400 or "original" not in evaluation:
+            error = evaluation.get("error")
+            code = error.get("code", "invalid_response") if isinstance(error, dict) else "invalid_response"
+            emit(case=name, version=version, status=status, error=code)
             continue
-        evaluation = response.json()
         score = evaluation["original"]
         rows = {grade["criterion_id"]: grade for grade in score["items"]}
         observed = {}
@@ -145,9 +195,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000", help="Datadoom backend origin")
     parser.add_argument("--prepare-only", action="store_true", help="Import synthetic inputs for a browser run")
+    parser.add_argument("--timeout", type=float, default=660, help="Seconds allowed per evaluation (default: 660)")
     args = parser.parse_args()
-    with httpx.Client(base_url=f"{args.base_url.rstrip('/')}/api", timeout=65, trust_env=False) as client:
-        return verify(client, prepare_only=args.prepare_only)
+    if not math.isfinite(args.timeout) or args.timeout <= 0:
+        parser.error("--timeout must be a positive number of seconds")
+    with httpx.Client(base_url=f"{args.base_url.rstrip('/')}/api", timeout=args.timeout, trust_env=False) as client:
+        return verify(client, prepare_only=args.prepare_only, timeout=args.timeout)
 
 
 if __name__ == "__main__":
