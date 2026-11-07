@@ -59,7 +59,7 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
       <div className="conversation-heading">
         <span className="conversation-icon"><Icon name={summary.channel === 'voice call' ? 'phone' : 'chat'} size={24} /></span>
         <div className="conversation-heading-copy">
-          <h2 id="conversation-heading">{summary.conversation_id}</h2>
+          <p className="conversation-eyebrow">CONVERSATION DETAILS</p><h2 id="conversation-heading">{summary.conversation_id}</h2>
           <div className="conversation-tags"><span className="conversation-channel">{summary.channel}</span><span>{summary.group_id}</span><span>{summary.language}</span></div>
         </div>
       </div>
@@ -71,7 +71,7 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
           </select>
         </label>
         <button type="button" className="button button-primary" disabled={!version || !conversation.data || running} onClick={runEvaluation}>
-          <Icon name="play" size={16} /> {running ? 'Evaluating…' : 'Run evaluation'}
+          <Icon name="activity" size={16} /> {running ? 'Evaluating…' : 'Run evaluation'}<Icon name="arrowUpRight" size={14} />
         </button>
       </div>
     </header>

@@ -42,7 +42,7 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
   return <section className="transcript pane" aria-labelledby="transcript-heading">
     <header className="pane-heading">
       <div className="pane-title"><span className="panel-icon"><Icon name="file" size={19} /></span><h2 id="transcript-heading" tabIndex={-1}>Transcript</h2></div>
-      <span className="quiet-chip">{conversation.turns.length} {conversation.turns.length === 1 ? 'turn' : 'turns'}</span>
+      <span className="quiet-chip">{String(conversation.turns.length).padStart(2, '0')} {conversation.turns.length === 1 ? 'turn' : 'turns'}</span>
     </header>
     {conversation.channel === 'voice call' && <div className="recording-row">
       <span><Icon name="phone" size={16} /> Call recording</span>
@@ -50,6 +50,7 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
         ? <a href={recording} target="_blank" rel="noopener noreferrer">Open recording <Icon name="arrowUpRight" size={15} /></a>
         : <span className="form-note">Recording unavailable</span>}
     </div>}
+    <div className="transcript-context"><span className="transcript-context-line" />Beginning of conversation<span className="transcript-context-line" /></div>
     <ol className="turns" ref={transcript}>
       {conversation.turns.map((turn) => <li className={`turn turn-${turn.speaker}${target?.id === turn.id ? ' turn-highlighted' : ''}`} key={turn.id} data-turn={turn.id} tabIndex={-1}>
         <span className="turn-indicator" aria-hidden="true" />
@@ -61,6 +62,6 @@ export function Transcript({ conversation, target }: { conversation: Conversatio
         </div>
       </li>)}
     </ol>
-    <div className="transcript-footer"><Icon name="clock" size={14} /> Timestamps follow the source transcript.</div>
+    <div className="transcript-footer"><Icon name="shield" size={14} /> Original transcript · Source timestamps preserved</div>
   </section>
 }

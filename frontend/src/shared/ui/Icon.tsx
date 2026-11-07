@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
 
 const icons = {
+  waveform: <><path d="M4 9v6m4-10v14m4-11v8m4-13v18m4-12v6" /></>,
+  grid: <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></>,
+  book: <><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1m0-14c3-2 6-2 9-1v14c-3-1-6-1-9 1zm0 0v14" /></>,
+  globe: <><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18M5 7h14M5 17h14" /></>,
+  shield: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></>,
   activity: <><path d="M3 12h4l3-7 4 14 3-7h4" /></>,
   arrow: <><path d="M5 12h14m-6-6 6 6-6 6" /></>,
   arrowUpRight: <><path d="M7 17 17 7M7 7h10v10" /></>,

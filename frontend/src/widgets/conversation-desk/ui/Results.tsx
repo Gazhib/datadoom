@@ -12,7 +12,7 @@ function ScoreOverview({ score, itemCount }: { score: Score; itemCount: number }
       <p className="kicker">Overall quality</p>
       <div className="score-number">{points(score.total)}<span>{score.total !== null && '/ 100'}</span></div>
       <p className="score-caption">{itemCount} {itemCount === 1 ? 'criterion' : 'criteria'} evaluated</p>
-      <span className={`flag-label${score.serious_error ? ' flag-raised' : ''}`}><Icon name="flag" size={15} /> {score.serious_error ? 'Serious error flagged' : 'No serious errors'}</span>
+      <span className={`flag-label${score.serious_error ? ' flag-raised' : ''}`}><Icon name={score.serious_error ? 'flag' : 'shield'} size={13} /> {score.serious_error ? 'Serious error flagged' : 'No serious errors'}</span>
     </div>
     {score.total !== null && <div className="score-dial" aria-hidden="true">
       <svg viewBox="0 0 120 120" fill="none">
@@ -20,7 +20,7 @@ function ScoreOverview({ score, itemCount }: { score: Score; itemCount: number }
         <circle cx="60" cy="60" r="46" className="dial-track" />
         {score.total > 0 && <circle cx="60" cy="60" r="46" className="dial-progress" pathLength="100" strokeDasharray={`${score.total} 100`} transform="rotate(-90 60 60)" />}
       </svg>
-      <Icon name="activity" size={34} />
+      <span className="dial-center"><Icon name="waveform" size={26} /><span>QUALITY</span></span>
     </div>}
   </div>
 }
@@ -77,7 +77,7 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
         {final.sections.map((section) => <div key={section.name}><dt>{section.name}</dt><dd>{points(section.points)} / {points(section.possible)}</dd></div>)}
       </dl>
     </details>}
-    <div className="criteria-heading"><h3>Criterion grades</h3><span>{checklist.name}</span></div>
+    <div className="criteria-heading"><div><p className="kicker">The details behind the score</p><h3>Criterion grades</h3></div><span>{final.items.length} criteria</span></div>
     <ol className="criteria-list">
       {final.items.map((item) => {
         const criterion = criteriaById.get(item.criterion_id)
