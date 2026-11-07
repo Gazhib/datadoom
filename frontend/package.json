@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "vite --mode mock",
     "build": "tsc -b && vite build",
+    "build:mock": "tsc -b && vite build --mode mock",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/onest": "^5.3.1",
+    "gsap": "^3.15.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
