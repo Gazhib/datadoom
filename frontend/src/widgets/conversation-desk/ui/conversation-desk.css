@@ -26,6 +26,13 @@
 .panel-icon svg { width: 15px; height: 15px; }
 .quiet-chip { color: #8a907d; font: 9px/1.3 var(--mono); white-space: nowrap; }
 .desk-message { display: grid; justify-items: start; gap: 12px; padding: 40px 24px; color: var(--muted); font-size: 13px; }
+.desk-tools { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: #f7f8ef; }
+.desk-tools > p { color: #717b62; font-size: 11px; overflow-wrap: anywhere; }
+.desk-tools > p strong { color: #51623e; font-family: var(--mono); font-weight: 400; }
+.desk-tools .button { min-height: 36px; font-size: 11px; }
+.evaluation-error { display: grid; justify-items: start; gap: 10px; margin: 15px 21px; }
+.evaluation-error .inline-error { width: 100%; }
+.version-notice { margin: 16px 21px 0; padding: 12px; border: 1px solid #e6d9bf; border-radius: 5px; color: #7d603a; background: #faf4e8; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
 
 .transcript { background: #fbfbf6; border-radius: 0 0 0 9px; }
 .transcript-context { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 23px 25px 7px; color: #999d8f; font-size: 8px; }
@@ -84,6 +91,7 @@
 .result-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0 21px 17px; }
 .version-chip { padding: 4px 6px; border: 1px solid #e1e5d6; border-radius: 3px; color: #7c846e; background: #f7f8f0; font: 8px/1.2 var(--mono); overflow-wrap: anywhere; }
 .model-label { color: #939987; font: 7px/1.5 var(--mono); overflow-wrap: anywhere; }
+.run-identifier { flex-basis: 100%; color: #737c65; font: 8px/1.6 var(--mono); overflow-wrap: anywhere; }
 .result-meta .mode-badge { margin-left: auto; padding: 3px 5px; font-size: 7px; }
 .section-breakdown { margin: 0 21px 23px; border: 1px solid #e2e5d8; border-radius: 5px; background: #fcfcf7; }
 .section-breakdown summary { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 8px 11px; border-radius: 4px; list-style: none; color: #747e65; font-size: 10px; font-weight: 450; }

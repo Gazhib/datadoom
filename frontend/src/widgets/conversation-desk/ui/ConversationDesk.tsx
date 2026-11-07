@@ -5,6 +5,7 @@ import { useMutation } from '../../../shared/lib/useMutation'
 import { useRemote } from '../../../shared/lib/useRemote'
 import { Icon } from '../../../shared/ui/Icon'
 import { Results } from './Results'
+import { RunComparison } from './RunComparison'
 import { Transcript } from './Transcript'
 import type { EvidenceTarget } from './Transcript'
 import './conversation-desk.css'
@@ -23,6 +24,8 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
   const [runId, setRunId] = useState('')
   const [updates, setUpdates] = useState<Evaluation[]>([])
   const [target, setTarget] = useState<EvidenceTarget | null>(null)
+  const [comparing, setComparing] = useState(false)
+  const [attemptedVersion, setAttemptedVersion] = useState<Checklist | null>(null)
   const { run, pending: running, error: runError } = useMutation()
 
   const remoteRuns = history.data?.items ?? []
@@ -40,12 +43,13 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
     setTarget(null)
   }
 
-  function runEvaluation() {
-    if (!version) return
+  function runEvaluation(checklist = version) {
+    if (!checklist) return
+    setAttemptedVersion(checklist)
     void run(async () => {
       onRunningChange(true)
       try {
-        const result = await qualityApi.evaluate(key, version.version_id)
+        const result = await qualityApi.evaluate(key, checklist.version_id)
         updateEvaluation(result)
         setRunId(result.id)
       } finally {
@@ -70,7 +74,7 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
             {versions.map((checklist) => <option value={checklist.version_id} key={checklist.version_id}>{checklist.version_id} · {checklist.name}</option>)}
           </select>
         </label>
-        <button type="button" className="button button-primary" disabled={!version || !conversation.data || running} onClick={runEvaluation}>
+        <button type="button" className="button button-primary" disabled={!version || !conversation.data || running} onClick={() => runEvaluation()}>
           <Icon name="activity" size={16} /> {running ? 'Evaluating…' : 'Run evaluation'}<Icon name="arrowUpRight" size={14} />
         </button>
       </div>
@@ -78,6 +82,17 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
     {conversation.error && <div className="desk-message"><p role="alert">{conversation.error}</p><button className="button button-outline" onClick={conversation.refresh}>Retry transcript</button></div>}
     {!conversation.data && conversation.loading && <p className="desk-message" role="status">Loading transcript…</p>}
     {conversation.data && <>
+      {evaluation && <div className="desk-tools">
+        <p>Saved result <strong>{evaluation.checklist.version_id}</strong></p>
+        <button className="button button-outline" type="button" aria-expanded={comparing} aria-controls="run-comparison"
+          onClick={() => { setComparing(!comparing); setTarget(null) }}>
+          <Icon name="layers" size={16} /> {comparing ? 'Close comparison' : 'Compare versions'}
+        </button>
+      </div>}
+      {comparing && evaluation && <div id="run-comparison">
+        <RunComparison key={evaluation.id} runs={runs} current={evaluation} conversation={conversation.data}
+          target={target} onEvidence={setTarget} onSelectionChange={() => setTarget(null)} />
+      </div>}
       <nav className="mobile-jump" aria-label="Conversation sections">
         <a href="#transcript-heading"><Icon name="file" size={17} /> Transcript</a>
         <a href="#results-heading"><Icon name="activity" size={17} /> Evaluation</a>
@@ -94,9 +109,16 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
               </select>
             </label>}
           </header>
-          {running && <p className="run-notice" role="status"><span className="spinner" /> Evaluating this conversation…</p>}
-          {runError && <p className="inline-error" role="alert">{runError}</p>}
+          {running && <p className="run-notice" role="status"><span className="spinner" /> Evaluating with {attemptedVersion?.version_id}… Saved results remain available.</p>}
+          {runError && <div className="evaluation-error">
+            <p className="inline-error" role="alert">{runError}</p>
+            <p className="form-note">The failed attempt did not replace saved results.</p>
+            <button className="button button-outline" type="button" disabled={running} onClick={() => runEvaluation(attemptedVersion ?? version)}>Retry evaluation</button>
+          </div>}
           {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>Retry history</button></div>}
+          {evaluation && version && evaluation.checklist.version_id !== version.version_id && <p className="version-notice">
+            This saved result uses <strong>{evaluation.checklist.version_id}</strong>. Run an evaluation to apply the selected <strong>{version.version_id}</strong> checklist.
+          </p>}
           {evaluation ? <Results key={evaluation.id} evaluation={evaluation} conversation={conversation.data} target={target}
             running={running} onEvidence={setTarget} onUpdated={updateEvaluation} />
             : history.loading ? <p className="empty-detail" role="status">Loading evaluation history…</p>
