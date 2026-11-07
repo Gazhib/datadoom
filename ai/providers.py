@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from .config import JudgeConfig
+from .config import JudgeConfig, KeepAlive
 from .contracts import ProviderName
+from .errors import EvaluationError
 
 
 GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -53,6 +54,7 @@ class Completion:
     prompt_tokens: int | None
     completion_tokens: int | None
     thinking_tokens: int | None = None
+    truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,10 +64,22 @@ class Provider:
     endpoint: httpx.URL
     api_key: str = field(default="", repr=False)
     temperature: float | None = None
+    num_ctx: int | None = None
+    keep_alive: KeepAlive = "30m"
 
     @property
     def local(self) -> bool:
         return self.name in {"llama.cpp", "ollama"}
+
+    @property
+    def host(self) -> str:
+        hostname = f"[{self.endpoint.host}]" if ":" in self.endpoint.host else self.endpoint.host
+        port = self.endpoint.port or (443 if self.endpoint.scheme == "https" else 80)
+        return f"{self.endpoint.scheme}://{hostname}:{port}"
+
+    def local_endpoint(self, path: str) -> httpx.URL:
+        suffix = DEFAULTS[self.name].suffix
+        return self.endpoint.copy_with(path=self.endpoint.path.removesuffix(suffix) + path)
 
     def headers(self) -> dict[str, str]:
         if self.name == "gemini":
@@ -101,7 +115,11 @@ class Provider:
                 **payload,
                 "format": schema,
                 "think": False,
-                "options": {**self.sampling(), "num_predict": max_tokens},
+                "keep_alive": keep_alive_value(self.keep_alive),
+                "options": {
+                    **self.sampling(), "num_predict": max_tokens,
+                    "num_ctx": ollama_context(messages, max_tokens, self.num_ctx),
+                },
             }
         if self.name == "openai":
             return {
@@ -140,6 +158,7 @@ class Provider:
                 content=content,
                 prompt_tokens=token_count(response, "prompt_eval_count"),
                 completion_tokens=token_count(response, "eval_count"),
+                truncated=response.get("done_reason") == "length",
             )
         if self.name == "gemini":
             candidates = response.get("candidates") or []
@@ -158,6 +177,7 @@ class Provider:
                 prompt_tokens=token_count(usage, "promptTokenCount"),
                 completion_tokens=token_count(usage, "candidatesTokenCount"),
                 thinking_tokens=token_count(usage, "thoughtsTokenCount"),
+                truncated=candidate.get("finishReason") == "MAX_TOKENS",
             )
 
         choices = response.get("choices") or []
@@ -173,7 +193,21 @@ class Provider:
             content=content,
             prompt_tokens=token_count(usage, "prompt_tokens"),
             completion_tokens=token_count(usage, "completion_tokens"),
+            truncated=choice.get("finish_reason") == "length",
         )
+
+
+def keep_alive_value(value: KeepAlive) -> str | int:
+    # YAML interpolation yields strings, but the Ollama API expects bare numbers as seconds.
+    return int(value) if isinstance(value, str) and value.lstrip("-").isdigit() else value
+
+
+def ollama_context(messages: list[dict[str, str]], max_tokens: int, override: int | None) -> int:
+    characters = sum(len(message["content"]) for message in messages)
+    needed = (characters + 2) // 3 + max_tokens + 256
+    if needed > (override or 16384):
+        raise EvaluationError(502, "transcript_too_long", "The prompt exceeds the Ollama context budget.")
+    return override or max(4096, ((needed + 1023) // 1024) * 1024)
 
 
 def token_count(usage: object, key: str) -> int | None:
@@ -181,14 +215,27 @@ def token_count(usage: object, key: str) -> int | None:
     return value if type(value) is int else None
 
 
-def build_provider(judge: JudgeConfig, env: Mapping[str, str] | None = None) -> Provider:
+def build_provider(
+    judge: JudgeConfig, env: Mapping[str, str] | None = None, *, keep_alive: KeepAlive = "30m"
+) -> Provider:
     env = os.environ if env is None else env
     defaults = DEFAULTS[judge.provider]
     model = judge.model or env.get(defaults.model_variable, "").strip() or defaults.model
     key_variables = (judge.api_key_env,) if judge.api_key_env else defaults.key_variables
     key = api_key(env, *key_variables) if key_variables else ""
     endpoint = provider_endpoint(judge, defaults, model, env)
-    return Provider(judge.provider, model, endpoint, key, judge.temperature)
+    num_ctx = None
+    if judge.provider == "ollama" and (raw_ctx := env.get("OLLAMA_NUM_CTX", "").strip()):
+        try:
+            num_ctx = int(raw_ctx)
+            if not 1 <= num_ctx <= 16384:
+                raise ValueError
+        except ValueError:
+            raise ValueError("Set OLLAMA_NUM_CTX to an integer from 1 to 16384.") from None
+    return Provider(
+        judge.provider, model, endpoint, key, judge.temperature, num_ctx,
+        keep_alive if judge.keep_alive is None else judge.keep_alive,
+    )
 
 
 def provider_endpoint(

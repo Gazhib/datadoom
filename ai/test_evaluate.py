@@ -11,6 +11,10 @@ import httpx
 import yaml
 
 from ai.main import app, provider_client
+from ai.scheduler import probe_cache
+
+
+TEST_ENGINE = os.getenv("EVALUATOR_TEST_ENGINE", "langgraph")
 
 
 def wire(grades: list[dict]) -> str:
@@ -80,12 +84,15 @@ class EvaluatorTestCase(unittest.TestCase):
             "reason": "The operator answered the schedule question.",
             "evidence_turn_ids": ["t1", "t3"],
         }
+        probe_cache.clear()
         self.requests = []
         self.upstream_requests = []
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.judges_file = Path(directory.name) / "judges.yaml"
-        settings = patch.dict(os.environ, {"EVALUATOR_JUDGES_FILE": str(self.judges_file)}, clear=True)
+        settings = patch.dict(os.environ, {
+            "EVALUATOR_JUDGES_FILE": str(self.judges_file), "EVALUATOR_ENGINE": TEST_ENGINE,
+        }, clear=True)
         settings.start()
         self.addCleanup(settings.stop)
         self.addCleanup(app.dependency_overrides.pop, provider_client, None)
@@ -101,6 +108,8 @@ class EvaluatorTestCase(unittest.TestCase):
         queues = {model: iter(answers) for model, answers in (routes or {}).items()}
 
         async def handle(request):
+            if request.method == "GET":
+                return httpx.Response(200, json={"version": "test"})
             body = json.loads(request.content)
             self.upstream_requests.append(request)
             self.requests.append(body)
@@ -121,7 +130,8 @@ class EvaluatorTestCase(unittest.TestCase):
                 return await client.post("/evaluate", json=self.data)
 
         app.dependency_overrides[provider_client] = mock_provider
-        return asyncio.run(send())
+        with patch("ai.panel.MIN_START_SECONDS", 0):
+            return asyncio.run(send())
 
 
 class SingleJudgeContractTests(EvaluatorTestCase):
@@ -182,13 +192,59 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         self.assertEqual(payload["model"], "qwen3:1.7b")
         self.assertFalse(payload["stream"])
         self.assertFalse(payload["think"])
-        self.assertEqual(payload["options"], {"temperature": 0, "num_predict": 256})
+        self.assertEqual(payload["options"], {"temperature": 0, "num_predict": 256, "num_ctx": 4096})
+        self.assertEqual(self.requests[1]["options"]["num_predict"], 512)
         rows = payload["format"]["properties"]["grades"]["items"]
         self.assertEqual(rows[1]["properties"]["v"]["enum"], [0, 5, 10, 15, 20, "na"])
         self.assertEqual(len(self.requests), 2)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["model"], {"provider": "panel", "model": "ollama/qwen3:1.7b"})
         self.assertEqual(response.json()["grades"], [self.binary, self.scale])
+
+    def test_non_json_provider_body_is_not_repaired(self):
+        reply = self.post(httpx.Response(200, text="<html>private upstream detail</html>"))
+        self.assertEqual(reply.status_code, 502)
+        self.assertEqual(reply.json()["error"]["code"], "provider_error")
+        self.assertNotIn("private upstream detail", reply.text)
+        self.assertEqual(len(self.requests), 1)
+
+    def test_hosted_length_limits_double_the_actual_generation_budget(self):
+        cases = (
+            ("openai", {"OPENAI_API_KEY": "test"},
+             {"model": "test", "choices": [{"finish_reason": "length"}]},
+             lambda row: row["max_completion_tokens"], False),
+            ("gemini", {"GEMINI_API_KEY": "test"},
+             {"modelVersion": "test", "candidates": [{"finishReason": "MAX_TOKENS"}]},
+             lambda row: row["generationConfig"]["maxOutputTokens"], True),
+        )
+        for provider, env, truncated, budget, gemini in cases:
+            with self.subTest(provider=provider), patch.dict(os.environ, env):
+                self.requests.clear()
+                self.use_judges({"name": "solo", "provider": provider})
+                response = self.post(
+                    httpx.Response(200, json=truncated),
+                    completion([self.binary, self.scale], "test", gemini=gemini),
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual([budget(row) for row in self.requests], [1024, 2048])
+
+    def test_ollama_sizes_context_for_long_call_and_rejects_over_limit(self):
+        self.use_judges({"name": "solo", "provider": "ollama"})
+        conversation = self.data["conversation"]
+        conversation["channel"] = "voice call"
+        conversation["turns"].extend(
+            {"id": f"t{i}", "text": "Long synthetic call segment. " * 9,
+             "timestamp": "00:00", "speaker": "client"}
+            for i in range(5, 61)
+        )
+        reply = self.post(ollama([self.binary, self.scale], "qwen3:1.7b"))
+        self.assertEqual(reply.status_code, 200)
+        self.assertEqual(self.requests[-1]["options"]["num_ctx"], 7168)
+        conversation["turns"][-1]["text"] *= 200
+        reply = self.post()
+        self.assertEqual(reply.status_code, 502)
+        self.assertEqual(reply.json()["error"]["code"], "transcript_too_long")
+        self.assertEqual(len(self.requests), 1)
 
     def test_openai_uses_strict_schema_and_reports_resolved_model(self):
         self.use_judges({"name": "solo", "provider": "openai"})
@@ -346,6 +402,8 @@ class ThreeJudgePanelTests(EvaluatorTestCase):
         self.use_panel()
 
     def use_panel(self, **panel):
+        # These contract tests compare all votes; early exit has its own coverage.
+        panel.setdefault("early_exit", False)
         self.use_judges(*(
             {"name": f"judge-{index}", "provider": "ollama", "model": model}
             for index, model in enumerate(self.MODELS, start=1)

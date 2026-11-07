@@ -4,7 +4,7 @@ import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -14,10 +14,11 @@ from .contracts import ProviderName
 
 DEFAULT_JUDGES_FILE = Path(__file__).with_name("judges.yaml")
 JUDGES_FILE_VARIABLE = "EVALUATOR_JUDGES_FILE"
-MAX_TIMEOUT_SECONDS = 600
+MAX_TIMEOUT_SECONDS = 900
 PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 JudgeName = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,40}$")]
+KeepAlive = Annotated[str, Field(pattern=r"^-?(?:\d+|\d+(?:\.\d+)?(?:ms|s|m|h))$")] | int
 VariableName = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
 
 
@@ -33,13 +34,18 @@ class JudgeConfig(ConfigModel):
     # The file names the variable that holds a key. Keys themselves never live in YAML.
     api_key_env: VariableName | None = None
     temperature: float | None = Field(default=None, ge=0, le=2)
+    fallback_url: str | None = None
+    fallback_model: str | None = None
+    keep_alive: KeepAlive | None = None
 
     @field_validator("provider", mode="before")
     @classmethod
     def normalize_provider(cls, value: object) -> object:
         return value.strip().lower() if isinstance(value, str) else value
 
-    @field_validator("model", "url", "api_key_env", "temperature", mode="before")
+    @field_validator(
+        "model", "url", "api_key_env", "temperature", "fallback_url", "fallback_model", "keep_alive", mode="before"
+    )
     @classmethod
     def blank_means_unset(cls, value: object) -> object:
         if isinstance(value, str):
@@ -47,10 +53,22 @@ class JudgeConfig(ConfigModel):
         return value
 
 
+    @model_validator(mode="after")
+    def validate_fallback(self) -> Self:
+        if self.fallback_url and self.provider not in {"ollama", "llama.cpp"}:
+            raise ValueError("Fallback servers are supported for local judges only.")
+        return self
+
+
 class PanelConfig(ConfigModel):
     # Unset means a simple majority of the configured judges.
     quorum: int | None = Field(default=None, ge=1)
-    timeout_seconds: float = Field(default=55, gt=0, le=MAX_TIMEOUT_SECONDS)
+    timeout_seconds: float = Field(default=540, gt=0, le=MAX_TIMEOUT_SECONDS)
+    judge_timeout_seconds: float = Field(default=240, gt=0, le=MAX_TIMEOUT_SECONDS)
+    execution: Literal["auto", "sequential", "parallel"] = "auto"
+    host_concurrency: int = Field(default=1, ge=1)
+    keep_alive: KeepAlive = "30m"
+    early_exit: bool = True
 
     @field_validator("quorum", mode="before")
     @classmethod

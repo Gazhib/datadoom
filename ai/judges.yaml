@@ -1,71 +1,37 @@
-# Judge panel for the Datadoom evaluator.
-#
-# Every judge grades each conversation independently and in parallel. The evaluator
-# then combines their grades per criterion:
-#   - yes/no and N/A: the value most judges chose. A tie goes to the judge listed first
-#     among the tied values, so order the judges by how much you trust them.
-#   - scale: N/A is decided by the same vote, then the lower median of the numeric grades.
-# The reason comes from the first judge that agrees with the result. Evidence combines
-# the turns cited by every agreeing judge.
-#
-# Any value can read an environment variable: ${NAME} or ${NAME:-default}. The default
-# applies when the variable is unset or empty, so the root .env can change a judge
-# without editing this file. Changes apply to the next evaluation without a restart.
-#
-# Judge fields:
-#   name         unique label used in logs and the result model (letters, digits, . _ -)
-#   provider     llama.cpp | ollama | openai | qwen | gemini
-#   model        model ID. Set it whenever you change the provider. When unset, it falls back to
-#                LLAMA_CPP_MODEL, OLLAMA_MODEL, OPENAI_MODEL, QWEN_MODEL or GEMINI_MODEL, then
-#                the built-in default.
-#   url          server base URL. When unset: LLAMA_CPP_URL, OLLAMA_URL, QWEN_BASE_URL or the
-#                OpenAI API. Hosted providers require HTTPS. Not supported for gemini.
-#   api_key_env  name of the variable that holds the API key. When unset: OPENAI_API_KEY,
-#                DASHSCOPE_API_KEY, or GEMINI_API_KEY then GOOGLE_API_KEY. Never put a key here.
-#   temperature  0-2. When unset: 0 for llama.cpp and Ollama, the provider default otherwise.
-#
-# Hosted judges receive the checklist and transcript. Use synthetic data until external
-# processing of official transcripts is approved.
-
+# LAN: set JUDGE_N_URL to each laptop. Unset URLs use the main OLLAMA_URL.
 panel:
-  # Judges that must return valid grades. Others may fail or miss the deadline.
-  # Unset means a simple majority: 2 of 3 judges.
   quorum: ${JUDGES_QUORUM}
-  # Shared deadline in seconds for all judges, including one repair each.
-  # Keep it below the backend's UPSTREAM_TIMEOUT_SECONDS, which is at most 60.
-  timeout_seconds: ${JUDGES_TIMEOUT_SECONDS:-55}
+  execution: ${JUDGES_EXECUTION:-auto}
+  host_concurrency: ${JUDGES_HOST_CONCURRENCY:-1}
+  timeout_seconds: ${JUDGES_TIMEOUT_SECONDS:-540}
+  judge_timeout_seconds: ${JUDGE_TIMEOUT_SECONDS:-240}
+  keep_alive: ${JUDGES_KEEP_ALIVE:-30m}
 
 judges:
   - name: judge-1
     provider: ${JUDGE_1_PROVIDER:-ollama}
-    model: ${JUDGE_1_MODEL:-qwen3:1.7b}
+    model: ${JUDGE_1_MODEL:-qwen3:4b}
     url: ${JUDGE_1_URL}
+    fallback_url: ${JUDGE_1_FALLBACK_URL}
+    fallback_model: ${JUDGE_1_FALLBACK_MODEL}
     api_key_env: ${JUDGE_1_API_KEY_ENV}
     temperature: ${JUDGE_1_TEMPERATURE}
-
+    keep_alive: ${JUDGE_1_KEEP_ALIVE}
   - name: judge-2
     provider: ${JUDGE_2_PROVIDER:-ollama}
     model: ${JUDGE_2_MODEL:-gemma3:4b}
     url: ${JUDGE_2_URL}
+    fallback_url: ${JUDGE_2_FALLBACK_URL}
+    fallback_model: ${JUDGE_2_FALLBACK_MODEL}
     api_key_env: ${JUDGE_2_API_KEY_ENV}
     temperature: ${JUDGE_2_TEMPERATURE}
-
+    keep_alive: ${JUDGE_2_KEEP_ALIVE}
   - name: judge-3
     provider: ${JUDGE_3_PROVIDER:-ollama}
-    model: ${JUDGE_3_MODEL:-phi4-mini}
+    model: ${JUDGE_3_MODEL:-llama3.2:3b}
     url: ${JUDGE_3_URL}
+    fallback_url: ${JUDGE_3_FALLBACK_URL}
+    fallback_model: ${JUDGE_3_FALLBACK_MODEL}
     api_key_env: ${JUDGE_3_API_KEY_ENV}
     temperature: ${JUDGE_3_TEMPERATURE}
-
-# Example of a mixed local and hosted panel. Set the keys in the root .env.
-#
-# judges:
-#   - name: local-qwen
-#     provider: ollama
-#     model: qwen3:1.7b
-#   - name: openai
-#     provider: openai
-#     model: gpt-5.4-mini
-#   - name: gemini
-#     provider: gemini
-#     model: gemini-3.1-flash-lite
+    keep_alive: ${JUDGE_3_KEEP_ALIVE}
