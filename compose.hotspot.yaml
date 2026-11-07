@@ -1,0 +1,7 @@
+# The evaluator runs in WSL so it can reach Ollama on the hotspot.
+services:
+  backend:
+    depends_on: !reset {}
+    environment:
+      EVALUATOR_URL: http://host.docker.internal:8011
+      EVALUATOR_STREAM: "true"
