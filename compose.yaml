@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: .
+      target: backend
+    depends_on:
+      evaluator:
+        condition: service_healthy
+    environment:
+      - EVALUATOR_URL=http://evaluator:8001
+      - ORGANIZER_GET_URL
+      - UPSTREAM_TIMEOUT_SECONDS
+    ports:
+      - "127.0.0.1:${DATADOOM_PORT:-8000}:8000"
+    volumes:
+      - sqlite:/app/backend/storage
+
+  evaluator:
+    build:
+      context: .
+      target: evaluator
+    environment:
+      - EVALUATOR_PROVIDER
+      - LLAMA_CPP_URL=${LLAMA_CPP_URL:-http://host.docker.internal:8080}
+      - LLAMA_CPP_MODEL
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - DASHSCOPE_API_KEY
+      - QWEN_BASE_URL
+      - QWEN_MODEL
+      - GEMINI_API_KEY
+      - GOOGLE_API_KEY
+      - GEMINI_MODEL
+
+volumes:
+  sqlite:

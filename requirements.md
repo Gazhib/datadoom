@@ -2,6 +2,25 @@
 
 Build an AI-powered hackathon prototype for a QA analyst and a reviewer. The analyst imports a dialogue, selects a saved checklist, runs an AI evaluation and can jump from each grade to its evidence. The reviewer resolves an appeal with a reason and can inspect the original and final scores. A judge can replace a criterion in the UI and apply the saved version to a previously unseen dialogue.
 
+## Implementation status · 7 November 2026
+
+Both Docker stacks served the website and returned the seeded `default-v1` checklist through the API. Live inference is the main blocker. A synthetic request reached the evaluator, which returned `503 provider_unavailable` because it could not reach the configured llama.cpp server.
+
+| Owner and task | Finished | Still open |
+| --- | --- | --- |
+| AI · T-001 | Evaluator endpoint, provider integration and contract tests. An earlier local model run graded a one-criterion synthetic input. | Restore model access from Docker and confirm a full-checklist request succeeds. The previous full-checklist run timed out. |
+| AI · T-002 | Rubric-driven prompt, grade and evidence validation, and tests for invalid output and provider failures. | Run V-03 on fresh RU, KZ and EN transcripts, including the required edge cases. Run the edited C05 pair with frontend and backend (V-05). Measure representative DEV p95 against the 30-second target (NFR-003) and record per-evaluation cost if using a paid model (CON-006). |
+| Backend · T-003 | JSON and organizer import paths, stable IDs, SQLite persistence and immutable checklist versions. Synthetic import and persistence tests passed. | Configure the organizer URL with authorized access. Verify the DEV response, counts, speaker roles, timestamps and recording URLs (V-01). |
+| Backend · T-004 | Scoring, evaluation validation and appeal persistence passed synthetic tests, including the 77.69 original and 84.62 revised totals (V-02, backend portions of V-04 and V-06). | — |
+| Backend · T-005 | Control CLI and resume behavior verified with synthetic data, including skipping successful live runs for the same checklist version. | Run the official control group with the team lead when released. Record the checklist version, processed count, failures and timing (V-07). |
+| Frontend · T-006 | Import, conversation list, transcript, evaluation results, evidence links and recording links are implemented. Frontend lint and production build passed. | Rehearse the browser flow with an official chat and call. Check evidence navigation, recording access and failure states (V-01 and V-04). |
+| Frontend · T-007 | Checklist editing and version selection, appeal submission and resolution, and original/final score display are implemented. | Save the replacement C05 in the browser and verify the live results with AI and backend (V-05). Rehearse appeal confirmation, grade change and reload in the browser (V-06). |
+| Team lead · T-008 | Role branches are merged and the integrated Docker stack runs locally. The root quick-start and Docker files exist in the working tree. | Include the quick-start and Docker files in the submission commit, verify launch from a clean clone, check the submitted contents for secrets and official data, send the repository link, record the H+24 commit and rehearse the five-minute defense (V-08). |
+
+**Optional FR-008** remains open. Run history lets users switch between evaluations. Comparing two checklist versions side by side would require a separate view.
+
+All 11 AI contract tests passed with synthetic fixtures. The backend suite passed 78 tests on Windows in UTF-8 mode. Two localhost timeout cases passed when rerun in Linux Docker.
+
 ## Start here · three independent handoffs
 
 Give each agent this file and the same initial repository snapshot. Each works on its own branch or clone, uses the contract and synthetic fixture below, and delivers one mergeable branch. The team lead resolves contract changes in this file and distributes the revision to all three agents.
@@ -192,5 +211,3 @@ Keep authentication, multi-user permissions, audio transcription, intonation sco
 | V-08 · submission | Follow the root README from a clean clone, check public contents for secret and data exclusion, record the frozen commit and time the defense at five minutes or less. CON-005, NFR-001. | Team lead |
 
 **Defense** — 0:00–1:00 open a dialogue from the list. 1:00–3:00 show grades, an evidence jump, N/A and the total. 3:00–4:00 appeal a grade and show the original alongside the reviewed result. 4:00–5:00 save the replacement criterion and launch or show the live run created with that exact version. If the provider is slow, begin processing on the frozen build before the pitch and identify the live run and input on screen.
-
-**Next step** — Share this file and the same starter snapshot with the three agents. Paste the assigned handoff row into each session and run the provider and DEV access spikes in parallel.
