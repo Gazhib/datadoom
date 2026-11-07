@@ -64,6 +64,10 @@ class Upstream:
                 timeout=self.settings.upstream_timeout,
                 follow_redirects=False,
             ) as response:
+                if response.status_code == 504:
+                    raise APIError(
+                        504, "upstream_timeout", "The upstream service timed out. Please retry."
+                    )
                 if response.status_code != 200:
                     raise APIError(
                         502, "upstream_failure", "The upstream service rejected the request."

@@ -137,6 +137,10 @@ def test_unavailable_invalid_and_timed_out_evaluator_preserve_results(
 ):
     stub.status = 503
     assert evaluate(client, key).status_code == 502
+    stub.status = 504
+    response = evaluate(client, key)
+    assert response.status_code == 504
+    assert response.json()["error"]["code"] == "upstream_timeout"
     stub.status = 200
     stub.raw_body = b"not JSON"
     assert evaluate(client, key).status_code == 502
