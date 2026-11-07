@@ -1,0 +1,110 @@
+{
+  "conversation": {
+    "key": "demo-001",
+    "group_id": "SYNTH",
+    "conversation_id": "ru-001",
+    "channel": "agent chat",
+    "language": "RU",
+    "audio_url": null,
+    "turns": [
+      {"id": "t1", "timestamp": "00:00", "speaker": "client", "text": "Какой график демо-чата и можно ли задать вопрос на английском?"},
+      {"id": "t2", "timestamp": "00:02", "speaker": "operator", "text": "Здравствуйте! Меня зовут Алия."},
+      {"id": "t3", "timestamp": "00:08", "speaker": "operator", "text": "Демо-чат работает по будням с 9:00 до 18:00."},
+      {"id": "t4", "timestamp": "00:12", "speaker": "system", "text": "Чат закрыт оператором."}
+    ]
+  },
+  "checklist": {
+    "version_id": "default-v1",
+    "name": "Чек-лист Freedom Broker",
+    "criteria": [
+      {
+        "id": "C01",
+        "label": "Установление контакта",
+        "instruction": "Yes if the operator greets in the client's language and introduces themselves in the first response.",
+        "kind": "binary",
+        "weight": 10,
+        "scale": [],
+        "allow_na": false,
+        "na_rule": null,
+        "section": "Начало и понимание запроса"
+      },
+      {
+        "id": "C02",
+        "label": "Выявление потребности",
+        "instruction": "Yes if the operator uses known details and clarifies missing information before answering.",
+        "kind": "binary",
+        "weight": 15,
+        "scale": [],
+        "allow_na": true,
+        "na_rule": "The customer provided enough information at the start.",
+        "section": "Начало и понимание запроса"
+      },
+      {
+        "id": "C03",
+        "label": "Идентификация",
+        "instruction": "Yes if the transcript confirms identity verification before protected disclosure or action. If verification was required and remains unconfirmed, use no.",
+        "kind": "binary",
+        "weight": 20,
+        "scale": [],
+        "allow_na": true,
+        "na_rule": "The request requires no identity verification.",
+        "section": "Безопасность и решение"
+      },
+      {
+        "id": "C04",
+        "label": "Корректная и полная консультация",
+        "instruction": "20: all material questions answered or a correct next step given. 15: main issue resolved with a minor omission. 10: material issue still open. 5: generic guidance without an actionable next step. 0: no substantive answer or a key error.",
+        "kind": "scale",
+        "weight": 20,
+        "scale": [0, 5, 10, 15, 20],
+        "allow_na": true,
+        "na_rule": "The chat ended before the client made a request.",
+        "section": "Безопасность и решение"
+      },
+      {
+        "id": "C05",
+        "label": "Эмпатия и клиентоориентированность",
+        "instruction": "Yes for politeness and, when the client expresses dissatisfaction or inconvenience, acknowledgment of the specific problem.",
+        "kind": "binary",
+        "weight": 15,
+        "scale": [],
+        "allow_na": false,
+        "na_rule": null,
+        "section": "Ведение и завершение диалога"
+      },
+      {
+        "id": "C06",
+        "label": "Управление диалогом, скорость и грамотность",
+        "instruction": "10: clear and coherent, with a warning for evident waits. 7: one noticeable lapse with the conversation still understandable. 4: client needs clarification because of wording or sequence. 0: incoherent or contradictory exchange that is hard to follow.",
+        "kind": "scale",
+        "weight": 15,
+        "scale": [0, 4, 7, 10],
+        "allow_na": false,
+        "na_rule": null,
+        "section": "Ведение и завершение диалога"
+      },
+      {
+        "id": "C07",
+        "label": "Завершение",
+        "instruction": "Yes if the operator summarizes or offers further help and says goodbye.",
+        "kind": "binary",
+        "weight": 5,
+        "scale": [],
+        "allow_na": true,
+        "na_rule": "The dialogue ended before the operator could close it.",
+        "section": "Ведение и завершение диалога"
+      },
+      {
+        "id": "C08",
+        "label": "Грубые ошибки",
+        "instruction": "Yes for an operator insult, a proposal for paid services outside the company, or disclosure of confidential information. A private paid offer alone suffices.",
+        "kind": "flag",
+        "weight": 0,
+        "scale": [],
+        "allow_na": false,
+        "na_rule": null,
+        "section": "Грубые нарушения"
+      }
+    ]
+  }
+}
