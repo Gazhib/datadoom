@@ -234,8 +234,10 @@ python -m ai.eval.run --judges-file ai/presets/one-laptop-8gb.yaml \
 | Run | Cases | Correct value and evidence | Agreement | p50 / p95 |
 | --- | ---: | ---: | ---: | --- |
 | LangGraph offline stub | 24 | 1/43 | 0.475 | 0.019 s / 0.029 s |
+| Warm Qwen3 1.7B baseline, KZ and EN regressions | 2 | 1/4 | 1.000 (one judge) | 11.509 s / 11.639 s |
+| Warm Qwen3 1.7B with speaker anchors | 2 | 1/4 | 1.000 (one judge) | 12.228 s / 12.288 s |
 
-The offline stub deliberately uses canned ballots without access to the labels. Its numbers verify report generation and are not a model accuracy baseline. V-03 still needs a live benchmark and an improvement on the KZ and EN regressions. When comparing prompts, use the same judge configuration and cases, and only keep a variant if accuracy increases with less than 20% added latency.
+The offline stub uses canned ballots without access to the labels; it verifies reporting and does not measure model quality. The live experiment added the first operator turn and system event IDs plus guidance on attribution, completed events and N/A. It raised p95 by 5.6% and corrected no additional checks, so the production prompt stayed unchanged. V-03 remains open. Repeat these cases on the three-laptop panel before comparing a compact transcript format. When comparing prompts, use the same judge configuration and cases, and only keep a variant if accuracy increases with less than 20% added latency.
 
 ## Provider spike
 
