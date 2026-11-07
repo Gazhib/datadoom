@@ -13,19 +13,25 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .config import Settings
 from .database import Database
 from .errors import APIError
+from .export import build_results
+from .jobs import Jobs, JobWorkers
 from .models import (
     AppealCreate,
     Checklist,
     ChecklistCreate,
     ChecklistList,
     Conversation,
+    ConversationLatestList,
     ConversationList,
     Decision,
     Evaluation,
     EvaluationCreate,
+    EvaluationJob,
     EvaluationList,
     ImportRequest,
     ImportResult,
+    JobBatch,
+    JobList,
     Nonblank,
 )
 from .service import Service
@@ -99,7 +105,10 @@ def import_conversations(body: ImportRequest, service: ServiceDep) -> ImportResu
 def list_conversations(
     service: ServiceDep,
     group_id: Annotated[Nonblank | None, Query()] = None,
-) -> ConversationList:
+    include: Annotated[Literal["latest"] | None, Query()] = None,
+) -> ConversationList | ConversationLatestList:
+    if include == "latest":
+        return ConversationLatestList(items=service.list_conversations_latest(group_id))
     return ConversationList(items=service.list_conversations(group_id))
 
 
@@ -146,7 +155,63 @@ def decide(id: str, criterion_id: str, body: Decision, service: ServiceDep) -> E
     return service.decide(id, criterion_id, body)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+@router.post("/evaluation-jobs", status_code=202)
+def enqueue_job(body: EvaluationCreate, service: ServiceDep) -> EvaluationJob:
+    return Jobs(service).enqueue(body)
+
+
+@router.post("/evaluation-jobs/batch", status_code=202)
+def enqueue_batch(body: JobBatch, service: ServiceDep) -> JobList:
+    return JobList(items=Jobs(service).batch(body))
+
+
+@router.get("/evaluation-jobs")
+def list_jobs(
+    service: ServiceDep,
+    conversation_key: Annotated[Nonblank | None, Query()] = None,
+    active: bool = False,
+) -> JobList:
+    return JobList(items=Jobs(service).list_jobs(conversation_key, active))
+
+
+@router.get("/evaluation-jobs/{id}")
+def get_job(id: str, service: ServiceDep) -> EvaluationJob:
+    return Jobs(service).get(id)
+
+
+@router.post("/evaluation-jobs/{id}/cancel")
+def cancel_job(id: str, service: ServiceDep) -> EvaluationJob:
+    return Jobs(service).cancel(id)
+
+
+@router.get("/judges")
+def judges(service: ServiceDep) -> dict[str, object]:
+    return service.upstream.judges()
+
+
+@router.get("/exports/results")
+def export_results(
+    service: ServiceDep,
+    group_id: Annotated[Nonblank, Query()],
+    checklist_version_id: Annotated[Nonblank, Query()],
+    team_name: Annotated[Nonblank | None, Query()] = None,
+    use_final: bool = False,
+) -> JSONResponse:
+    team = team_name or service.upstream.settings.results_team_name
+    if not team:
+        raise APIError(422, "invalid_input", "A team name is required for export.")
+    document = build_results(
+        service.database, group_id, checklist_version_id, team, use_final=use_final
+    )
+    return JSONResponse(
+        content=document.model_dump(),
+        headers={
+            "Content-Disposition": 'attachment; filename="results.json"',
+        },
+    )
+
+
+def create_app(settings: Settings | None = None, *, start_workers: bool = True) -> FastAPI:
     config = settings or Settings.from_env()
 
     @asynccontextmanager
@@ -158,7 +223,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database.initialize()
         with httpx.Client(trust_env=False) as client:
             app.state.service = Service(database, Upstream(config, client))
-            yield
+            Jobs(app.state.service).recover()
+            workers = JobWorkers(database, config)
+            if start_workers:
+                workers.start()
+            try:
+                yield
+            finally:
+                workers.stop()
 
     application = FastAPI(title="Datadoom Backend", version="1.0.0", lifespan=lifespan)
     application.add_middleware(RequestLimit)

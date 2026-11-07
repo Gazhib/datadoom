@@ -56,6 +56,18 @@ class Conversation(ConversationSummary):
     turns: list[Turn]
 
 
+class LatestEvaluation(Contract):
+    evaluation_id: str
+    checklist_version_id: str
+    mode: Literal["live", "fixture"]
+    total: float | None
+    serious_error: bool
+
+
+class ConversationWithLatest(ConversationSummary):
+    latest: LatestEvaluation | None
+
+
 class Criterion(Contract):
     id: Nonblank
     label: Nonblank
@@ -124,10 +136,43 @@ class Model(Contract):
     model: Nonblank
 
 
+GradeValue = Literal["yes", "no", "na"] | StrictInteger
+
+
+class PanelData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+
+class PanelJudge(PanelData):
+    name: Nonblank
+    provider: Nonblank
+    model: Nonblank
+    host: str
+    fallback: bool
+    status: Literal["ok", "failed", "skipped"]
+    error_code: str | None
+    seconds: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None
+
+
+class PanelVote(PanelData):
+    criterion_id: Nonblank
+    value: GradeValue
+    agreement: Annotated[float, Field(ge=0, le=1)]
+    ballots: dict[str, GradeValue]
+
+
+class Panel(PanelData):
+    quorum: Annotated[int, Field(strict=True, ge=1)]
+    agreement: Annotated[float, Field(ge=0, le=1)]
+    judges: list[PanelJudge]
+    votes: list[PanelVote]
+
+
 class EvaluatorResult(Contract):
     mode: Literal["live", "fixture"]
     model: Model
     grades: list[Grade]
+    panel: Panel | None = None
 
 
 class ScoreItem(Grade):
@@ -182,11 +227,52 @@ class Evaluation(Contract):
     original: Score
     final: Score
     appeals: list[Appeal]
+    panel: Panel | None = None
 
 
 class EvaluationCreate(Contract):
     conversation_key: Nonblank
     checklist_version_id: Nonblank
+
+
+class JobBatch(Contract):
+    group_id: Nonblank
+    checklist_version_id: Nonblank
+    skip_existing: bool = True
+
+
+class JobError(Contract):
+    code: Nonblank
+    message: Nonblank
+
+
+class JudgeProgress(Contract):
+    name: Nonblank
+    status: Literal["pending", "running", "ok", "failed", "skipped"]
+    host: str | None = None
+    seconds: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
+
+
+class JobProgress(Contract):
+    judges: list[JudgeProgress]
+
+
+class EvaluationJob(Contract):
+    id: str
+    conversation_key: str
+    checklist_version_id: str
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    queue_position: int | None
+    progress: JobProgress | None
+    evaluation_id: str | None
+    error: JobError | None
+
+
+class JobList(Contract):
+    items: list[EvaluationJob]
 
 
 class ImportRequest(Contract):
@@ -211,6 +297,10 @@ class ImportResult(Contract):
 
 class ConversationList(Contract):
     items: list[ConversationSummary]
+
+
+class ConversationLatestList(Contract):
+    items: list[ConversationWithLatest]
 
 
 class ChecklistList(Contract):

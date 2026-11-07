@@ -37,6 +37,22 @@ MIGRATIONS = [
             PRIMARY KEY(evaluation_id, criterion_id)
         )""",
     ],
+    [
+        """CREATE TABLE evaluation_jobs (
+            id TEXT PRIMARY KEY,
+            conversation_key TEXT NOT NULL REFERENCES conversations(key),
+            checklist_version_id TEXT NOT NULL REFERENCES checklists(version_id),
+            status TEXT NOT NULL CHECK(status IN
+                ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            finished_at TEXT,
+            evaluation_id TEXT REFERENCES evaluations(id),
+            error_json TEXT,
+            progress_json TEXT
+        )""",
+        "CREATE INDEX evaluation_jobs_status ON evaluation_jobs(status)",
+    ],
 ]
 
 

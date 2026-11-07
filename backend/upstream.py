@@ -1,13 +1,19 @@
 import json
+from collections.abc import Callable
+from threading import Lock
 from typing import Any
 from urllib.parse import quote, unquote_plus, urlsplit, urlunsplit
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
+from .concurrency import evaluation_slots
 from .config import Settings
 from .errors import APIError
-from .models import Checklist, Conversation, EvaluatorResult, RawRecord
+from .models import Checklist, Conversation, EvaluatorResult, JudgeProgress, RawRecord
+
+_stream_lock = Lock()
+_stream_unavailable: set[str] = set()
 
 
 def validate_service_url(url: str, service: str) -> None:
@@ -55,13 +61,14 @@ class Upstream:
         *,
         payload: dict[str, Any] | None = None,
         max_bytes: int = 25_000_000,
+        timeout: float | None = None,
     ) -> Any:
         try:
             with self.client.stream(
                 method,
                 url,
                 json=payload,
-                timeout=self.settings.upstream_timeout,
+                timeout=self.settings.upstream_timeout if timeout is None else timeout,
                 follow_redirects=False,
             ) as response:
                 if response.status_code == 504:
@@ -110,18 +117,46 @@ class Upstream:
                 "Organizer records do not match the import format.",
             ) from None
 
-    def evaluate(self, conversation: Conversation, checklist: Checklist) -> EvaluatorResult:
+    def judges(self) -> dict[str, Any]:
+        try:
+            validate_service_url(self.settings.evaluator_url, "Evaluator")
+            body = self.request_json(
+                "GET",
+                self.settings.evaluator_url.rstrip("/") + "/judges",
+                timeout=3,
+                max_bytes=100_000,
+            )
+            if not isinstance(body, dict) or not isinstance(body.get("judges"), list):
+                raise ValueError
+            return body
+        except (APIError, ValueError):
+            raise APIError(
+                503, "evaluator_unavailable", "Evaluator status is unavailable."
+            ) from None
+
+    def evaluate(
+        self,
+        conversation: Conversation,
+        checklist: Checklist,
+        *,
+        progress: Callable[[dict[str, Any]], None] | None = None,
+    ) -> EvaluatorResult:
         url = self.settings.evaluator_url
         validate_service_url(url, "Evaluator")
-        body = self.request_json(
-            "POST",
-            url.rstrip("/") + "/evaluate",
-            payload={
-                "conversation": conversation.model_dump(),
-                "checklist": checklist.model_dump(),
-            },
-            max_bytes=2_000_000,
-        )
+        payload = {"conversation": conversation.model_dump(), "checklist": checklist.model_dump()}
+        # Only remote evaluation consumes a slot. No database transaction is open here.
+        with evaluation_slots(self.settings.evaluation_concurrency):
+            with _stream_lock:
+                stream = self.settings.evaluator_stream and url not in _stream_unavailable
+            body = self._stream(url, payload, progress) if stream else None
+            if body is None:
+                body = self.request_json(
+                    "POST",
+                    url.rstrip("/") + "/evaluate",
+                    payload=payload,
+                    timeout=self.settings.evaluator_timeout,
+                    max_bytes=2_000_000,
+                )
         try:
             result = EvaluatorResult.model_validate(body)
         except ValidationError:
@@ -137,3 +172,114 @@ class Upstream:
                 502, "invalid_evaluator_response", "Synthetic output cannot be labeled live."
             )
         return result
+
+    def _stream(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        progress: Callable[[dict[str, Any]], None] | None,
+    ) -> Any:
+        def invalid() -> APIError:
+            return APIError(502, "invalid_evaluator_response", "Invalid evaluator stream.")
+
+        final: dict[str, Any] | None = None
+        started = False
+        judges: set[str] = set()
+        try:
+            with self.client.stream(
+                "POST",
+                url.rstrip("/") + "/evaluate/stream",
+                json=payload,
+                timeout=self.settings.evaluator_timeout,
+                follow_redirects=False,
+            ) as response:
+                if response.status_code in {404, 405}:
+                    with _stream_lock:
+                        _stream_unavailable.add(url)
+                    return None
+                if response.status_code == 504:
+                    raise APIError(504, "upstream_timeout", "The evaluator timed out.")
+                if response.status_code != 200:
+                    raise APIError(502, "upstream_failure", "The evaluator rejected the request.")
+                if "application/x-ndjson" not in response.headers.get("content-type", ""):
+                    raise invalid()
+                buffer = bytearray()
+                total = 0
+
+                def consume(line: bytes) -> None:
+                    nonlocal final, started
+                    if len(line) > 2_000_000 or not line.strip():
+                        raise invalid()
+                    event = json.loads(line)
+                    if not isinstance(event, dict) or final is not None:
+                        raise invalid()
+                    kind = event.get("event")
+                    if not started:
+                        if kind != "started" or not isinstance(event.get("judges"), list):
+                            raise invalid()
+                        if not all(isinstance(n, str) and n.strip() for n in event["judges"]):
+                            raise invalid()
+                        judges.update(event["judges"])
+                        if len(judges) != len(event["judges"]):
+                            raise invalid()
+                        started = True
+                    elif kind in {"result", "error"}:
+                        final = event
+                        return
+                    elif kind not in {"judge_started", "judge_finished"}:
+                        raise invalid()
+                    else:
+                        name = event.get("judge")
+                        if not isinstance(name, str) or name not in judges:
+                            raise invalid()
+                        status = "running" if kind == "judge_started" else event.get("status")
+                        if kind == "judge_finished" and status not in {"ok", "failed", "skipped"}:
+                            raise invalid()
+                        JudgeProgress.model_validate(
+                            {
+                                "name": name,
+                                "status": status,
+                                "seconds": event.get("seconds"),
+                            }
+                        )
+                    if progress:
+                        progress(event)
+
+                for chunk in response.iter_bytes():
+                    total += len(chunk)
+                    if total > 2_000_000:
+                        raise invalid()
+                    buffer.extend(chunk)
+                    while b"\n" in buffer:
+                        line, _, remaining = buffer.partition(b"\n")
+                        buffer = bytearray(remaining)
+                        consume(bytes(line))
+                    if len(buffer) > 2_000_000:
+                        raise invalid()
+                if buffer:
+                    consume(bytes(buffer))
+            if final is None:
+                raise invalid()
+            if final["event"] == "error":
+                error = final.get("error")
+                status = final.get("status")
+                if (
+                    type(status) is not int
+                    or not 400 <= status <= 599
+                    or not isinstance(error, dict)
+                    or not isinstance(error.get("code"), str)
+                    or not error["code"].strip()
+                    or not isinstance(error.get("message"), str)
+                    or not error["message"].strip()
+                ):
+                    raise invalid()
+                raise APIError(status, error["code"], "The evaluator could not complete the run.")
+            if not isinstance(final.get("result"), dict):
+                raise invalid()
+            return final["result"]
+        except httpx.TimeoutException:
+            raise APIError(504, "upstream_timeout", "The evaluator timed out.") from None
+        except httpx.RequestError:
+            raise APIError(502, "upstream_unavailable", "Cannot reach the evaluator.") from None
+        except (ValueError, UnicodeError, KeyError, TypeError):
+            raise invalid() from None

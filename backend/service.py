@@ -1,4 +1,7 @@
+import logging
 import sqlite3
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
 
 from .database import Database
@@ -10,11 +13,13 @@ from .models import (
     ChecklistCreate,
     Conversation,
     ConversationSummary,
+    ConversationWithLatest,
     Decision,
     Evaluation,
     Grade,
     ImportRequest,
     ImportResult,
+    LatestEvaluation,
     Turn,
 )
 from .scoring import calculate_score, validate_grade, validate_grades
@@ -132,11 +137,38 @@ class Service:
             )
         return checklist
 
-    def evaluate(self, conversation_key: str, checklist_version_id: str) -> Evaluation:
+    def list_conversations_latest(self, group_id: str | None) -> list[ConversationWithLatest]:
+        summaries = self.list_conversations(group_id)
+        with self.database.transaction() as connection:
+            latest: dict[str, LatestEvaluation | None] = {}
+            for summary in summaries:
+                row = connection.execute(
+                    "SELECT payload FROM evaluations WHERE conversation_key = ? "
+                    "ORDER BY rowid DESC LIMIT 1",
+                    (summary.key,),
+                ).fetchone()
+                latest[summary.key] = None
+                if row:
+                    run = Evaluation.model_validate_json(row["payload"])
+                    latest[summary.key] = LatestEvaluation(
+                        evaluation_id=run.id,
+                        checklist_version_id=run.checklist.version_id,
+                        mode=run.mode,
+                        total=run.final.total,
+                        serious_error=run.final.serious_error,
+                    )
+        return [ConversationWithLatest(**s.model_dump(), latest=latest[s.key]) for s in summaries]
+
+    def evaluate(
+        self,
+        conversation_key: str,
+        checklist_version_id: str,
+        progress: Callable[[dict[str, Any]], None] | None = None,
+    ) -> Evaluation:
         conversation = self.get_conversation(conversation_key)
         checklist = self.get_checklist(checklist_version_id)
         # Network I/O and validation happen before opening the write transaction.
-        result = self.upstream.evaluate(conversation, checklist)
+        result = self.upstream.evaluate(conversation, checklist, progress=progress)
         try:
             validate_grades(result.grades, checklist, conversation)
         except ValueError:
@@ -146,6 +178,13 @@ class Service:
                 "Evaluator grades or evidence do not match this conversation and checklist.",
             ) from None
         score = calculate_score(checklist, result.grades)
+        if result.panel is not None:
+            ids = [vote.criterion_id for vote in result.panel.votes]
+            if len(ids) != len(checklist.criteria) or set(ids) != {
+                c.id for c in checklist.criteria
+            }:
+                logging.getLogger(__name__).warning("Dropped panel with mismatched criterion IDs")
+                result.panel = None
         evaluation = Evaluation(
             id=uuid4().hex,
             conversation_key=conversation_key,
@@ -155,6 +194,7 @@ class Service:
             original=score,
             final=score.model_copy(deep=True),
             appeals=[],
+            panel=result.panel,
         )
         with self.database.transaction(write=True) as connection:
             connection.execute(

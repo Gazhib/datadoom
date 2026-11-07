@@ -146,7 +146,7 @@ def test_unavailable_invalid_and_timed_out_evaluator_preserve_results(
     assert evaluate(client, key).status_code == 502
     stub.raw_body = None
     stub.delay = 0.1
-    with TestClient(create_app(replace(settings, upstream_timeout=0.01))) as impatient:
+    with TestClient(create_app(replace(settings, evaluator_timeout=0.01))) as impatient:
         assert evaluate(impatient, key).status_code == 504
     assert client.get(f"/api/evaluations?conversation_key={key}").json()["items"] == [evaluation]
 
