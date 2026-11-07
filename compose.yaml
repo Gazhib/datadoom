@@ -23,6 +23,8 @@ services:
       - EVALUATOR_PROVIDER
       - LLAMA_CPP_URL=${LLAMA_CPP_URL:-http://host.docker.internal:8080}
       - LLAMA_CPP_MODEL
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL
       - OPENAI_API_KEY
       - OPENAI_MODEL
       - DASHSCOPE_API_KEY

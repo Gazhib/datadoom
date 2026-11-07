@@ -132,6 +132,37 @@ class EvaluatorContractTests(unittest.TestCase):
         self.assertEqual(len(self.requests), 2)
         self.assertIn("Cite only exact turn IDs", self.requests[1]["messages"][0]["content"])
 
+    def test_ollama_requests_structured_output_without_thinking(self):
+        content = completion([self.binary, self.scale]).json()["choices"][0]["message"]["content"]
+        output = {
+            "model": "qwen3:1.7b",
+            "done": True,
+            "done_reason": "stop",
+            "message": {"content": content},
+            "prompt_eval_count": 10,
+            "eval_count": 6,
+        }
+        with patch.dict(os.environ, {"EVALUATOR_PROVIDER": "ollama"}):
+            response = self.post(
+                httpx.Response(200, json=dict(output, done_reason="length")),
+                httpx.Response(200, json=output),
+            )
+
+        upstream = self.upstream_requests[0]
+        self.assertEqual(str(upstream.url), "http://127.0.0.1:11434/api/chat")
+        self.assertNotIn("authorization", upstream.headers)
+        payload = self.requests[0]
+        self.assertEqual(payload["model"], "qwen3:1.7b")
+        self.assertFalse(payload["stream"])
+        self.assertFalse(payload["think"])
+        self.assertEqual(payload["options"], {"temperature": 0, "num_predict": 256})
+        rows = payload["format"]["properties"]["grades"]["items"]
+        self.assertEqual(rows[1]["properties"]["v"]["enum"], [0, 5, 10, 15, 20, "na"])
+        self.assertEqual(len(self.requests), 2)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["model"], {"provider": "ollama", "model": "qwen3:1.7b"})
+        self.assertEqual(response.json()["grades"], [self.binary, self.scale])
+
     def test_openai_uses_strict_schema_and_reports_resolved_model(self):
         with patch.dict(os.environ, {"EVALUATOR_PROVIDER": "openai", "OPENAI_API_KEY": "openai-test-key"}):
             response = self.post(completion([self.binary, self.scale], "gpt-5.4-mini-2026-03-17"))

@@ -101,7 +101,7 @@ def build_response_schema(data: EvaluationRequest, *, local: bool) -> dict:
         schema["properties"]["grades"].update(minItems=count, maxItems=count)
         return schema
 
-    # llama.cpp accepts a tuple schema. Constrain each row as it decodes so a small
+    # Local engines accept a tuple schema. Constrain each row as it decodes so a small
     # model cannot mix up IDs, invent evidence IDs, or emit a binary value for a scale.
     rows = []
     for criterion in data.checklist.criteria:
@@ -201,7 +201,7 @@ async def evaluate(
     except ValueError as error:
         raise EvaluationError(503, "provider_unavailable", str(error)) from None
 
-    local = provider.name == "llama.cpp"
+    local = provider.name in {"llama.cpp", "ollama"}
     messages = build_messages(data, local=local)
     schema = build_response_schema(data, local=local)
     count = len(data.checklist.criteria)
