@@ -1,10 +1,10 @@
-import { defaultChecklist, demoConversations, gradesByFixture } from './fixtures'
+import { defaultChecklist, demoConversations, fixtureJudges, fixturePanel, gradesByFixture } from './fixtures'
 import { validateRecords } from './upload'
-import type { Checklist, Conversation, Evaluation, Grade, QualityApi, RawRecord } from '../model/contract'
+import type { Checklist, Conversation, Evaluation, EvaluationJob, Grade, QualityApi, RawRecord } from '../model/contract'
 import { allowedGradeValues, validateCriterion } from '../model/rubric'
 import { scoreGrades } from './scoreGrades'
 
-type Store = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: Checklist[] }
+type Store = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: Checklist[]; jobs: EvaluationJob[] }
 const storageKey = 'datadoom.synthetic.v1'
 
 function asRaw(conversation: Conversation): RawRecord {
@@ -36,19 +36,21 @@ function makeEvaluation(conversation: Conversation, checklist: Checklist, id: st
   return {
     id, conversation_key: conversation.key, checklist, mode: 'fixture',
     model: { provider: 'fixture', model: 'synthetic-v1' }, original, final: original, appeals: [],
+    panel: fixturePanel(grades, checklist, conversation.key === demoConversations[2].key),
   }
 }
 
 function readStore(): Store {
   const stored = localStorage.getItem(storageKey)
   if (stored) {
-    const store: Omit<Store, 'checklists'> & { checklists?: Checklist[] } = JSON.parse(stored)
+    const store: Omit<Store, 'checklists' | 'jobs'> & { checklists?: Checklist[]; jobs?: EvaluationJob[] } = JSON.parse(stored)
     const call = demoConversations.find((item) => item.channel === 'voice call')!
-    return {
+    return advanceJobs({
       ...store,
       checklists: store.checklists ?? [defaultChecklist],
+      jobs: store.jobs ?? [],
       conversations: store.conversations.map((item) => item.key === call.key ? call : item),
-    }
+    })
   }
   return {
     conversations: demoConversations,
@@ -57,6 +59,7 @@ function readStore(): Store {
       makeEvaluation(demoConversations[2], defaultChecklist, 'fixture-003'),
     ],
     checklists: [defaultChecklist],
+    jobs: [],
   }
 }
 
@@ -64,6 +67,77 @@ const pause = () => new Promise<void>((resolve) => window.setTimeout(resolve, 24
 
 function writeStore(store: Store) {
   localStorage.setItem(storageKey, JSON.stringify(store))
+}
+
+// Reconstruct progress from persisted timestamps, even after a reload or a suspended tab.
+function advanceJobs(store: Store): Store {
+  const before = JSON.stringify(store.jobs)
+  const now = Date.now()
+  let availableAt = 0
+  let position = 0
+  for (const job of [...store.jobs].reverse()) {
+    if (job.status === 'cancelled') continue
+    if (job.status === 'succeeded' || job.status === 'failed') {
+      availableAt = Math.max(availableAt, Date.parse(job.finished_at!))
+      continue
+    }
+    const start = job.started_at ? Date.parse(job.started_at) : Math.max(Date.parse(job.created_at) + 1200, availableAt)
+    const conversation = store.conversations.find(({ key }) => key === job.conversation_key)!
+    const fail = conversation.conversation_id.toLowerCase().includes('fail') && !store.jobs.some((previous) =>
+      previous.id !== job.id && previous.conversation_key === job.conversation_key &&
+      previous.checklist_version_id === job.checklist_version_id && previous.status === 'failed')
+    const duration = fail ? 4700 : 6600
+    availableAt = start + duration
+    if (now < start) {
+      job.queue_position = ++position
+      continue
+    }
+    job.started_at = new Date(start).toISOString()
+    job.queue_position = null
+    job.status = 'running'
+    let offset = 0
+    job.progress = { judges: fixtureJudges.map((judge, index): NonNullable<EvaluationJob['progress']>['judges'][number] => {
+      const elapsed = now - start - offset
+      offset += judge.seconds * 1000
+      const skipped = conversation.key === demoConversations[2].key && index === 2 || fail && index === 2
+      return {
+        name: judge.name, host: judge.host,
+        status: skipped ? 'skipped' : elapsed < 0 ? 'pending' : elapsed < judge.seconds * 1000 ? 'running' : fail && index === 1 ? 'failed' : 'ok',
+        seconds: skipped || elapsed < 0 ? null : Math.min(elapsed / 1000, judge.seconds),
+      }
+    }) }
+    if (now < availableAt) continue
+    job.finished_at = new Date(availableAt).toISOString()
+    if (fail) {
+      job.status = 'failed'
+      job.error = { code: 'fixture_failure', message: 'Synthetic judge failure. Retry to complete this demo evaluation.' }
+    } else {
+      const checklist = store.checklists.find(({ version_id }) => version_id === job.checklist_version_id)!
+      const evaluation = makeEvaluation(conversation, checklist, `fixture-${job.id}`)
+      store.evaluations.unshift(evaluation)
+      job.status = 'succeeded'
+      job.evaluation_id = evaluation.id
+    }
+  }
+  if (before !== JSON.stringify(store.jobs)) writeStore(store)
+  return store
+}
+
+function enqueue(store: Store, key: string, versionId: string): EvaluationJob {
+  if (!store.conversations.some((item) => item.key === key)) throw new Error('Conversation not found.')
+  if (!store.checklists.some((item) => item.version_id === versionId)) throw new Error('Checklist version not found.')
+  const existing = store.jobs.find((job) => job.conversation_key === key && job.checklist_version_id === versionId &&
+    (job.status === 'queued' || job.status === 'running'))
+  if (existing) return existing
+  const job: EvaluationJob = {
+    id: crypto.randomUUID(), conversation_key: key, checklist_version_id: versionId,
+    status: 'queued', created_at: new Date().toISOString(), started_at: null, finished_at: null,
+    queue_position: store.jobs.filter(({ status }) => status === 'queued').length + 1,
+    progress: { judges: fixtureJudges.map(({ name, host }) => ({ name, host, status: 'pending', seconds: null })) },
+    evaluation_id: null, error: null,
+  }
+  store.jobs.unshift(job)
+  return job
 }
 
 function getEvaluation(store: Store, id: string) {
@@ -111,8 +185,16 @@ export const mockApi: QualityApi = {
     return { group_id: group, imported, skipped }
   },
 
-  async listConversations() {
-    return { items: readStore().conversations.map(({ turns: _turns, ...summary }) => summary) }
+  async listConversations(signal) {
+    signal?.throwIfAborted()
+    const store = readStore()
+    return { items: store.conversations.map(({ turns: _turns, ...summary }) => {
+      const evaluation = store.evaluations.find((item) => item.conversation_key === summary.key)
+      return { ...summary, latest: evaluation ? {
+        evaluation_id: evaluation.id, checklist_version_id: evaluation.checklist.version_id,
+        mode: evaluation.mode, total: evaluation.final.total, serious_error: evaluation.final.serious_error,
+      } : null }
+    }) }
   },
 
   async getConversation(key) {
@@ -145,6 +227,65 @@ export const mockApi: QualityApi = {
   async listEvaluations(key) {
     return { items: readStore().evaluations.filter((item) => item.conversation_key === key) }
   },
+
+  async getEvaluation(id, signal) {
+    signal?.throwIfAborted()
+    return getEvaluation(readStore(), id)
+  },
+
+  async startEvaluationJob(key, versionId) {
+    const store = readStore()
+    const job = enqueue(store, key, versionId)
+    writeStore(store)
+    return job
+  },
+
+  async getEvaluationJob(id, signal) {
+    signal?.throwIfAborted()
+    const job = readStore().jobs.find((item) => item.id === id)
+    if (!job) throw new Error('Evaluation job not found.')
+    return job
+  },
+
+  async listEvaluationJobs(filters = {}, signal) {
+    signal?.throwIfAborted()
+    return { items: readStore().jobs.filter((job) =>
+      (!filters.conversation_key || job.conversation_key === filters.conversation_key) &&
+      (!filters.active || job.status === 'queued' || job.status === 'running')) }
+  },
+
+  async startGroupEvaluation(groupId, versionId) {
+    const store = readStore()
+    const items = store.conversations.filter((item) => item.group_id === groupId)
+      .map((item) => enqueue(store, item.key, versionId))
+    writeStore(store)
+    return { items }
+  },
+
+  async cancelEvaluationJob(id) {
+    const store = readStore()
+    const job = store.jobs.find((item) => item.id === id)
+    if (!job) throw new Error('Evaluation job not found.')
+    if (job.status !== 'queued') throw new Error('Only a queued evaluation can be cancelled.')
+    job.status = 'cancelled'
+    job.queue_position = null
+    job.finished_at = new Date().toISOString()
+    writeStore(store)
+    return job
+  },
+
+  async getJudges(signal) {
+    signal?.throwIfAborted()
+    return {
+      execution: 'sequential', quorum: 2, timeout_seconds: 540,
+      judges: fixtureJudges.map((judge) => ({
+        ...judge, reachable: true, model_available: true, fallback_host: null, fallback_reachable: null,
+      })),
+    }
+  },
+
+  // Fixture evaluations intentionally cannot be submitted as official organizer results.
+  async exportResults() { return null },
 
   async evaluate(key, versionId) {
     await pause()

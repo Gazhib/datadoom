@@ -1,4 +1,4 @@
-import type { Checklist, Conversation, Grade } from '../model/contract'
+import type { Checklist, Conversation, Grade, Panel } from '../model/contract'
 import syntheticCall from './synthetic-call.wav?url'
 
 const opening = 'Начало и понимание запроса'
@@ -96,6 +96,33 @@ export const gradesByFixture: Record<string, Grade[]> = {
   'demo-001': russianChatGrades,
   'demo-002': kazakhChatGrades,
   'demo-003': englishCallGrades,
+}
+
+export const fixtureJudges = [
+  { name: 'judge-1', provider: 'fixture', model: 'qwen3:1.7b', host: 'http://judge-1.local:11434', seconds: 2.1 },
+  { name: 'judge-2', provider: 'fixture', model: 'gemma3:4b', host: 'http://judge-2.local:11434', seconds: 2.6 },
+  { name: 'judge-3', provider: 'fixture', model: 'phi4-mini', host: 'http://judge-3.local:11434', seconds: 1.9 },
+]
+
+export function fixturePanel(grades: Grade[], checklist: Checklist, skipLast: boolean): Panel {
+  const judges = fixtureJudges.map((judge, index) => ({
+    ...judge, fallback: false, status: skipLast && index === 2 ? 'skipped' as const : 'ok' as const,
+    seconds: skipLast && index === 2 ? null : judge.seconds, error_code: null,
+  }))
+  const votes = grades.map((grade) => {
+    const criterion = checklist.criteria.find(({ id }) => id === grade.criterion_id)
+    const ballots = Object.fromEntries(judges.filter(({ status }) => status === 'ok').map((judge) => [
+      judge.name,
+      // Deliberately split the synthetic defense example; production UI never depends on this ID.
+      grade.criterion_id === 'C06' && grade.value === 7 && judge.name === 'judge-3' && criterion?.scale.includes(10)
+        ? 10 : grade.value,
+    ]))
+    return {
+      criterion_id: grade.criterion_id, value: grade.value, ballots,
+      agreement: Object.values(ballots).filter((value) => value === grade.value).length / Object.keys(ballots).length,
+    }
+  })
+  return { quorum: 2, judges, votes, agreement: votes.length ? votes.reduce((sum, vote) => sum + vote.agreement, 0) / votes.length : 1 }
 }
 
 // Cue points measured in the bundled recording. Transcript timestamps are source data.

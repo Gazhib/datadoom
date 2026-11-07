@@ -10,10 +10,17 @@ export type ConversationSummary = {
   channel: Channel
   language: Language
   audio_url: string | null
+  latest?: {
+    evaluation_id: string
+    checklist_version_id: string
+    mode: 'live' | 'fixture'
+    total: number | null
+    serious_error: boolean
+  } | null
 }
 
 export type Conversation = ConversationSummary & { turns: Turn[] }
-export type RawRecord = Omit<ConversationSummary, 'key' | 'group_id'> & {
+export type RawRecord = Omit<ConversationSummary, 'key' | 'group_id' | 'latest'> & {
   transcript: Omit<Turn, 'id'>[]
 }
 
@@ -62,6 +69,73 @@ export type Evaluation = {
   original: Score
   final: Score
   appeals: Appeal[]
+  panel?: Panel | null
+}
+
+export type PanelVote = {
+  criterion_id: string
+  value: Grade['value']
+  agreement: number
+  ballots: Record<string, Grade['value']>
+}
+
+export type Panel = {
+  quorum: number
+  agreement: number
+  judges: {
+    name: string
+    provider: string
+    model: string
+    host: string
+    fallback: boolean
+    status: 'ok' | 'failed' | 'skipped'
+    error_code: string | null
+    seconds: number | null
+  }[]
+  votes: PanelVote[]
+}
+
+export type EvaluationJob = {
+  id: string
+  conversation_key: string
+  checklist_version_id: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  queue_position: number | null
+  progress: { judges: {
+    name: string
+    status: 'pending' | 'running' | 'ok' | 'failed' | 'skipped'
+    host: string | null
+    seconds: number | null
+  }[] } | null
+  evaluation_id: string | null
+  error: { code: string; message: string } | null
+}
+
+export type JobFilters = { conversation_key?: string; active?: boolean }
+export type JudgeStatus = {
+  execution: string
+  quorum: number
+  timeout_seconds: number
+  judges: {
+    name: string
+    provider: string
+    model: string
+    host: string
+    reachable: boolean
+    model_available: boolean | null
+    fallback_host: string | null
+    fallback_reachable: boolean | null
+  }[]
+}
+
+export type ResultsExport = {
+  schema_version: string
+  team_name: string
+  model: { mode: 'local' | 'external_api' | 'hybrid'; name: string }
+  results: unknown[]
 }
 
 export type ImportRequest =
@@ -79,7 +153,16 @@ export interface QualityApi {
   listChecklists(signal?: AbortSignal): Promise<Items<Checklist>>
   createChecklist(draft: ChecklistDraft): Promise<Checklist>
   listEvaluations(key: string, signal?: AbortSignal): Promise<Items<Evaluation>>
+  getEvaluation(id: string, signal?: AbortSignal): Promise<Evaluation>
   evaluate(key: string, versionId: string): Promise<Evaluation>
+  // null means that the optional route is unavailable on this backend.
+  startEvaluationJob(key: string, versionId: string): Promise<EvaluationJob | null>
+  getEvaluationJob(id: string, signal?: AbortSignal): Promise<EvaluationJob>
+  listEvaluationJobs(filters?: JobFilters, signal?: AbortSignal): Promise<Items<EvaluationJob>>
+  startGroupEvaluation(groupId: string, versionId: string): Promise<Items<EvaluationJob> | null>
+  cancelEvaluationJob(id: string): Promise<EvaluationJob>
+  getJudges(signal?: AbortSignal): Promise<JudgeStatus | null>
+  exportResults(groupId: string, versionId: string, teamName: string, signal?: AbortSignal): Promise<ResultsExport | null>
   submitAppeal(evaluationId: string, criterionId: string, comment: string): Promise<Evaluation>
   decideAppeal(evaluationId: string, criterionId: string, decision: Decision): Promise<Evaluation>
 }
