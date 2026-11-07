@@ -1,7 +1,7 @@
 .criterion-votes { display: grid; gap: 7px; margin-block: 12px; }
 .vote-caption { color: var(--muted); font-size: 11px; font-weight: 650; }
 .vote-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.vote-chip { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-size: 11px; }
+.vote-chip { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-size: 11px; overflow-wrap: anywhere; }
 .vote-chip > span { color: var(--muted); }
 .criterion-votes-split { padding: 10px; border: 1px solid #e7cf9f; border-radius: 7px; background: #fff8e9; }
 .criterion-votes-split .vote-caption { color: #775018; }

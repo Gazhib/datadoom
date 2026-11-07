@@ -45,7 +45,10 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
     job.checklist_version_id === version?.version_id && (job.status === 'queued' || job.status === 'running'))
   const newestCompletedId = completed[0]?.id
   useEffect(() => {
-    if (newestCompletedId) { setRunId(newestCompletedId); setTarget(null) }
+    if (newestCompletedId) {
+      setRunId(newestCompletedId)
+      setTarget((previous) => previous?.source?.startsWith('judge:') ? previous : null)
+    }
   }, [newestCompletedId])
 
   const remoteRuns = [...completed, ...(history.data?.items ?? []).filter((item) => !completed.some((run) => run.id === item.id))]
@@ -101,7 +104,9 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
     </header>
     {conversation.error && <div className="desk-message"><p role="alert">{conversation.error}</p><button className="button button-outline" onClick={conversation.refresh}>Retry transcript</button></div>}
     {!conversation.data && conversation.loading && <p className="desk-message" role="status">Loading transcript…</p>}
-    <EvaluationProgress jobs={jobs} starting={starting} failure={failure} onCancel={onCancel} onRetry={onRun} />
+    <EvaluationProgress jobs={jobs} versions={versions} runs={runs} evaluation={evaluation} starting={starting}
+      evidence={view === 'analysis' ? { turns: conversation.data?.turns, target, onEvidence: setTarget } : undefined}
+      failure={failure} onCancel={onCancel} onRetry={onRun} />
     {conversation.data && view === 'appeals' && <section className="pane appeals-pane" aria-labelledby="appeals-heading">
       <header className="pane-heading"><div><h2 id="appeals-heading">Appeals for this conversation</h2>{evaluation && <p className="form-note">Checklist {evaluation.checklist.version_id}</p>}</div>{runHistory}</header>
       {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>Retry history</button></div>}

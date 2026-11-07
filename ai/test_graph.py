@@ -82,11 +82,16 @@ class GraphParityTests(EvaluatorTestCase):
                 self.assertEqual(lines[0], {"event": "started", "judges": ["solo"]})
                 self.assertEqual(set(lines[-1]["result"]), {"mode", "model", "grades"})
                 self.assertEqual(lines[-1]["result"]["grades"], [self.binary, self.scale])
+                if engine == "langgraph":
+                    self.assertEqual(lines[-2]["grades"], [self.binary, self.scale])
                 self.mock_transport(fail=True)
                 _, _, lines = self.stream(self.data)
                 self.assertEqual([line["event"] for line in lines], events[:-1] + ["error"])
                 self.assertEqual(lines[-1]["error"]["code"], "provider_error")
                 self.assertEqual(lines[-1]["status"], 502)
+                if engine == "langgraph":
+                    self.assertEqual(lines[-2]["error_code"], "provider_error")
+                    self.assertNotIn("grades", lines[-2])
 
     def test_stream_configuration_and_validation_fail_before_ndjson(self):
         self.mock_transport()

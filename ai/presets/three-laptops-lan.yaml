@@ -10,7 +10,7 @@ panel:
 judges:
   - name: judge-1
     provider: ${JUDGE_1_PROVIDER:-ollama}
-    model: ${JUDGE_1_MODEL:-qwen3:4b}
+    model: ${JUDGE_1_MODEL:-qwen3:8b}
     url: ${JUDGE_1_URL}
     fallback_url: ${JUDGE_1_FALLBACK_URL}
     fallback_model: ${JUDGE_1_FALLBACK_MODEL}

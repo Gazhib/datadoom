@@ -10,7 +10,7 @@ panel:
 judges:
   - name: judge-1
     provider: ollama
-    model: ${JUDGE_1_MODEL:-qwen3:4b}
+    model: ${JUDGE_1_MODEL:-qwen3:8b}
     temperature: ${JUDGE_1_TEMPERATURE}
     keep_alive: ${JUDGE_1_KEEP_ALIVE}
   - name: judge-2

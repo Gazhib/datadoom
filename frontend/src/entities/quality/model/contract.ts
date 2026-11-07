@@ -109,6 +109,8 @@ export type EvaluationJob = {
     status: 'pending' | 'running' | 'ok' | 'failed' | 'skipped'
     host: string | null
     seconds: number | null
+    error_code?: string | null
+    grades?: Grade[] | null
   }[] } | null
   evaluation_id: string | null
   error: { code: string; message: string } | null

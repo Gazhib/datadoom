@@ -30,7 +30,7 @@ class JudgeConfigTests(unittest.TestCase):
         config = load_judges(DEFAULT_JUDGES_FILE, {})
         self.assertEqual([judge.name for judge in config.judges], ["judge-1", "judge-2", "judge-3"])
         self.assertEqual({judge.provider for judge in config.judges}, {"ollama"})
-        self.assertEqual([judge.model for judge in config.judges], ["qwen3:4b", "gemma3:4b", "llama3.2:3b"])
+        self.assertEqual([judge.model for judge in config.judges], ["qwen3:8b", "gemma3:4b", "llama3.2:3b"])
         self.assertEqual((config.quorum, config.panel.timeout_seconds), (2, 540))
         self.assertTrue(all(judge.url is None and judge.temperature is None for judge in config.judges))
 
@@ -105,9 +105,9 @@ class ProviderResolutionTests(unittest.TestCase):
 
     def test_provider_environment_fills_unset_judge_fields(self):
         judge = self.judge(provider="ollama")
-        env = {"OLLAMA_URL": "http://host.docker.internal:11434", "OLLAMA_MODEL": "qwen3:4b"}
+        env = {"OLLAMA_URL": "http://host.docker.internal:11434", "OLLAMA_MODEL": "qwen3:8b"}
         provider = build_provider(judge, env)
-        self.assertEqual(provider.model, "qwen3:4b")
+        self.assertEqual(provider.model, "qwen3:8b")
         self.assertEqual(str(provider.endpoint), "http://host.docker.internal:11434/api/chat")
 
     def test_custom_key_variable_and_https_only_for_hosted_providers(self):

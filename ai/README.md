@@ -4,7 +4,7 @@ T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and
 
 ## Judge panel
 
-[`judges.yaml`](judges.yaml) matches the LAN preset: Qwen3 4B, Gemma 3 4B and Llama 3.2 3B. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
+[`judges.yaml`](judges.yaml) matches the LAN preset with Qwen3 8B, Gemma 3 4B and Llama 3.2 3B. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
 
 - **Yes/no and N/A:** plurality, with ties going to the earliest judge who chose a tied value.
 - **Scale:** plurality decides whether N/A applies. Otherwise the lower median of numeric votes wins.
@@ -59,7 +59,7 @@ Start the selected Ollama servers before the evaluator. After changing environme
 
 1. Use native Ollama on each laptop. WSL2 NAT hides the service from other laptops unless mirrored networking is enabled. Set `OLLAMA_HOST=0.0.0.0:11434`, `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1`, then restart Ollama. On Windows set user environment variables and quit and reopen Ollama; on Linux use the service environment. [Ollama configuration](https://docs.ollama.com/faq) describes the platform-specific steps. These variables were checked with `ollama serve --help` on Ollama 0.40.15.
 2. Allow inbound TCP 11434 from your local subnet only. Ollama has no built-in authentication for the local API, so use a trusted network. Put all laptops on the same Wi-Fi; if the venue blocks traffic between clients, use a phone hotspot or a travel router. Prefer fixed addresses or `<hostname>.local`. Plug in each laptop and turn off sleep.
-3. Pull one model on each judge laptop: `ollama pull qwen3:4b` on the first, `ollama pull gemma3:4b` on the second and `ollama pull llama3.2:3b` on the third. Run `ollama show <model>` there to confirm the tag. The model choices are provisional until measured across real laptops.
+3. Pull one model on each judge laptop. Use `ollama pull qwen3:8b` on the first, `ollama pull gemma3:4b` on the second and `ollama pull llama3.2:3b` on the third. Run `ollama show <model>` there to confirm the tag. The model choices are provisional until measured across real laptops.
 
 From the main laptop, substitute the three addresses. Use small fallback models pulled on the main laptop if you want the panel to retain all three judges during an outage. Omit a fallback to let quorum cover that judge.
 
@@ -193,7 +193,7 @@ graph TD;
 
 ```
 
-`GET /health` is process liveness. `GET /judges` returns reachability, installed model status where available, and fallback reachability. Hosted judges are shown as configured; the evaluator doesn't make hosted health calls. `POST /warmup` loads Ollama models with a nonzero keep-alive. `POST /evaluate/stream` emits NDJSON with the judge names, start and finish events, and one final result or error; legacy emits only the first and last events. Validation and configuration errors return normal JSON before the stream opens.
+`GET /health` is process liveness. `GET /judges` returns reachability, installed model status where available, and fallback reachability. Hosted judges are shown as configured; the evaluator doesn't make hosted health calls. `POST /warmup` loads Ollama models with a nonzero keep-alive. With the default LangGraph engine, `POST /evaluate/stream` sends the configured judge names, each judge's start and finish events, and a terminal result or error. Successful `judge_finished` events include validated `grades` in the same shape as the panel's grades. Failed and skipped judges report their status and any error code. The legacy engine sends only the initial judge names and the terminal result or error. Validation and configuration errors return normal JSON before the stream opens.
 
 ## Live acceptance suite
 

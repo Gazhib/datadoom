@@ -6,7 +6,7 @@
 .panel-summary { margin-top: 5px; color: var(--muted); font-size: 12px; }
 .panel-judges { display: grid; gap: 10px; margin-block: 14px; padding: 0; list-style: none; }
 .panel-judges li { display: grid; gap: 3px; min-width: 0; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
-.panel-judge-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.panel-judge-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; overflow-wrap: anywhere; }
 .panel-status, .fallback-badge { padding: 2px 5px; border-radius: 4px; font-size: 10px; }
 .panel-status-ok { color: var(--positive); background: var(--positive-soft); }
 .panel-status-failed { color: #973232; background: #fbe9e7; }

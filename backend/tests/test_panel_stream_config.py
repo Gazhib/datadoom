@@ -128,7 +128,12 @@ def test_stream_progress_and_result_are_saved(settings, client, key, stub):
         done = streamed.get(f"/api/evaluation-jobs/{job['id']}").json()
         assert done["status"] == "succeeded"
         assert done["progress"] == {
-            "judges": [{"name": "judge-1", "status": "ok", "host": None, "seconds": 0.1}]
+            "judges": [
+                {
+                    "name": "judge-1", "status": "ok", "host": None, "seconds": 0.1,
+                    "error_code": None, "grades": None,
+                }
+            ]
         }
         assert (
             streamed.get(f"/api/evaluations/{done['evaluation_id']}").json()["original"]["total"]
@@ -182,3 +187,44 @@ def test_stream_error_keeps_prior_evaluation(settings, client, key, evaluation, 
         assert streamed.get(f"/api/evaluations?conversation_key={key}").json()["items"] == [
             evaluation
         ]
+
+
+@pytest.mark.parametrize(
+    "bad_grade",
+    [None, {"criterion_id": "unknown"}, {"value": 99}, {"evidence_turn_ids": ["unknown"]}],
+)
+def test_partial_grades_survive_panel_failure(settings, client, key, stub, bad_grade):
+    stub.stream_events = [
+        {"event": "started", "judges": ["judge-1", "judge-2", "judge-3"]},
+        {"event": "judge_finished", "judge": "judge-2", "status": "ok", "grades": stub.grades},
+        {
+            "event": "judge_finished", "judge": "judge-1", "status": "failed",
+            "error_code": "provider_timeout",
+        },
+        {"event": "judge_finished", "judge": "judge-3", "status": "skipped"},
+        {"event": "error", "status": 502, "error": {
+            "code": "quorum_not_met", "message": "Quorum missed",
+        }},
+    ]
+    if bad_grade:
+        stub.stream_events[3] = {
+            "event": "judge_finished", "judge": "judge-3", "status": "ok",
+            "grades": [{**stub.grades[0], **bad_grade}, *stub.grades[1:]],
+        }
+    with TestClient(
+        create_app(replace(settings, evaluator_stream=True), start_workers=False)
+    ) as streamed:
+        job = enqueue(streamed, key).json()
+        assert Jobs(streamed.app.state.service).run_one()
+        done = streamed.get(f"/api/evaluation-jobs/{job['id']}").json()
+        assert done["status"] == "failed"
+        assert done["evaluation_id"] is None
+        expected_error = "invalid_evaluator_response" if bad_grade else "quorum_not_met"
+        assert done["error"]["code"] == expected_error
+        judges = done["progress"]["judges"]
+        assert judges[0]["status"] == "failed"
+        assert judges[0]["error_code"] == "provider_timeout"
+        assert judges[1]["status"] == "ok"
+        assert judges[1]["grades"] == stub.grades
+        assert judges[2]["status"] == ("pending" if bad_grade else "skipped")
+        assert judges[2]["grades"] is None

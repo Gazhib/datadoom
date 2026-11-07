@@ -1,19 +1,24 @@
-.evaluation-progress { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--accent-soft); }
+.evaluation-progress { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px 18px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--accent-soft); }
 .progress-heading, .progress-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .progress-heading { justify-content: space-between; gap: 12px; }
 .progress-title { font-size: 14px; }
 .progress-title > strong { font-variant-numeric: tabular-nums; }
 .progress-version { color: var(--muted); font: 11px var(--mono); overflow-wrap: anywhere; }
 .progress-heading .button { min-height: 34px; padding: 6px 10px; font-size: 12px; }
-.judge-progress { display: flex; flex-wrap: wrap; gap: 7px; padding: 0; list-style: none; }
-.judge-progress-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); font-size: 11px; }
-.judge-progress-chip > span { color: var(--muted); }
-.judge-state-mark { width: 6px; height: 6px; border-radius: 50%; background: #8a95a3; }
-.judge-running { border-color: var(--accent-line); }
-.judge-running .judge-state-mark { background: var(--accent); }
-.judge-ok .judge-state-mark { background: var(--positive); }
-.judge-failed .judge-state-mark { background: #ad3535; }
-.judge-skipped .judge-state-mark { background: #96702a; }
+.judge-results { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.judge-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 7px; }
+.judge-tab { display: flex; align-items: flex-start; flex-direction: column; justify-content: center; gap: 4px; min-height: 48px; padding: 8px 10px; border: 1px solid var(--input-line); border-radius: 7px; background: var(--paper); font-size: 13px; text-align: left; overflow-wrap: anywhere; }
+.judge-tab:hover { border-color: var(--accent); }
+.judge-tab[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 -3px var(--accent); color: var(--accent-hover); }
+.judge-tab-status, .judge-detail { color: var(--muted); font-size: 12px; }
+.judge-running { color: var(--accent-hover); }
+.judge-ok { color: var(--positive); }
+.judge-failed { color: #973232; }
+.judge-skipped { color: #775018; }
+.judge-tab-panel { max-block-size: min(24rem, 55dvh); overflow: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); }
+.judge-detail { margin-bottom: 6px; overflow-wrap: anywhere; }
+.judge-grades { padding: 0; list-style: none; }
+.criterion-title.judge-criterion-title { grid-template-columns: minmax(0, 1fr) auto; }
 .progress-failed { border-color: #e5bcbc; background: #fff5f3; }
 .progress-cancelled { border-color: var(--line); background: var(--surface); color: var(--muted); }
 @media (max-width: 490px) { .evaluation-progress { padding: 13px; } }

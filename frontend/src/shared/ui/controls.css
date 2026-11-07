@@ -8,8 +8,8 @@
 .icon-button { width: 37px; min-height: 37px; padding: 0; }
 .field-label { color: var(--muted); font-size: 12px; font-weight: 620; }
 select { min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var(--input-line); border-radius: 7px; background: var(--paper); color: var(--ink); font-size: 13px; }
-.dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); background: var(--paper); box-shadow: 0 24px 100px #14253733; scrollbar-color: var(--input-line) transparent; }
-.dialog::backdrop { background: #14253770; backdrop-filter: blur(5px); }
+.dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); background: var(--paper); box-shadow: 0 24px 100px color-mix(in srgb, var(--signal) 20%, transparent); scrollbar-color: var(--input-line) transparent; }
+.dialog::backdrop { background: color-mix(in srgb, var(--signal) 44%, transparent); backdrop-filter: blur(5px); }
 .dialog-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
 .dialog-heading .kicker { color: var(--accent); font-size: 9px; }
 .dialog-heading h2 { margin-top: 6px; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.04em; }

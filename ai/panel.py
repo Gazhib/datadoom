@@ -68,8 +68,11 @@ class PanelRun:
         if self.observe:
             self.observe(outcome)
         if emit:
-            emit({"event": "judge_finished", "judge": outcome.name, "status": outcome.status,
-                  "seconds": outcome.seconds, "error_code": outcome.error_code})
+            event = {"event": "judge_finished", "judge": outcome.name, "status": outcome.status,
+                     "seconds": outcome.seconds, "error_code": outcome.error_code}
+            if outcome.verdict is not None:
+                event["grades"] = [grade.model_dump() for grade in outcome.verdict.grades]
+            emit(event)
         return outcome
 
 

@@ -11,6 +11,7 @@ from .concurrency import evaluation_slots
 from .config import Settings
 from .errors import APIError
 from .models import Checklist, Conversation, EvaluatorResult, JudgeProgress, RawRecord
+from .scoring import validate_grades
 
 _stream_lock = Lock()
 _stream_unavailable: set[str] = set()
@@ -143,17 +144,19 @@ class Upstream:
     ) -> EvaluatorResult:
         url = self.settings.evaluator_url
         validate_service_url(url, "Evaluator")
-        payload = {"conversation": conversation.model_dump(), "checklist": checklist.model_dump()}
         # Only remote evaluation consumes a slot. No database transaction is open here.
         with evaluation_slots(self.settings.evaluation_concurrency):
             with _stream_lock:
                 stream = self.settings.evaluator_stream and url not in _stream_unavailable
-            body = self._stream(url, payload, progress) if stream else None
+            body = self._stream(url, conversation, checklist, progress) if stream else None
             if body is None:
                 body = self.request_json(
                     "POST",
                     url.rstrip("/") + "/evaluate",
-                    payload=payload,
+                    payload={
+                        "conversation": conversation.model_dump(),
+                        "checklist": checklist.model_dump(),
+                    },
                     timeout=self.settings.evaluator_timeout,
                     max_bytes=2_000_000,
                 )
@@ -176,7 +179,8 @@ class Upstream:
     def _stream(
         self,
         url: str,
-        payload: dict[str, Any],
+        conversation: Conversation,
+        checklist: Checklist,
         progress: Callable[[dict[str, Any]], None] | None,
     ) -> Any:
         def invalid() -> APIError:
@@ -189,7 +193,10 @@ class Upstream:
             with self.client.stream(
                 "POST",
                 url.rstrip("/") + "/evaluate/stream",
-                json=payload,
+                json={
+                    "conversation": conversation.model_dump(),
+                    "checklist": checklist.model_dump(),
+                },
                 timeout=self.settings.evaluator_timeout,
                 follow_redirects=False,
             ) as response:
@@ -235,13 +242,19 @@ class Upstream:
                         status = "running" if kind == "judge_started" else event.get("status")
                         if kind == "judge_finished" and status not in {"ok", "failed", "skipped"}:
                             raise invalid()
-                        JudgeProgress.model_validate(
+                        update = JudgeProgress.model_validate(
                             {
                                 "name": name,
                                 "status": status,
                                 "seconds": event.get("seconds"),
+                                "error_code": event.get("error_code"),
+                                "grades": event.get("grades"),
                             }
                         )
+                        if update.grades is not None:
+                            if update.status != "ok":
+                                raise invalid()
+                            validate_grades(update.grades, checklist, conversation)
                     if progress:
                         progress(event)
 

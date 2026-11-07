@@ -251,6 +251,8 @@ class JudgeProgress(Contract):
     status: Literal["pending", "running", "ok", "failed", "skipped"]
     host: str | None = None
     seconds: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
+    error_code: Nonblank | None = None
+    grades: list[Grade] | None = None
 
 
 class JobProgress(Contract):

@@ -187,7 +187,12 @@ class Jobs:
                 else:
                     if event.get("status") not in {"ok", "failed", "skipped"}:
                         raise ValueError("Invalid judge status")
-                    judge.update(status=event["status"], seconds=event.get("seconds"))
+                    judge.update(
+                        status=event["status"],
+                        seconds=event.get("seconds"),
+                        error_code=event.get("error_code"),
+                        grades=event.get("grades"),
+                    )
             parsed = JobProgress.model_validate(progress)
             connection.execute(
                 "UPDATE evaluation_jobs SET progress_json = ? WHERE id = ? AND status = 'running'",
