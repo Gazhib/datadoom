@@ -38,7 +38,7 @@ Extract the [llama.cpp b12184](https://github.com/ggml-org/llama.cpp/releases/ta
 & 'C:\path\to\llama-server.exe' -m 'C:\models\Qwen3-1.7B-Q4_K_M.gguf' --alias Qwen3-1.7B-Q4_K_M --host 127.0.0.1 --port 8080 -c 8192 -np 1 --no-context-shift --reasoning off -t 6 -tb 8 --log-disable
 ```
 
-Start the evaluator in a second terminal. `LLAMA_CPP_MODEL` must match the server's alias. The local model requires no API key and has no per-call provider charge.
+Start the evaluator in a second terminal. `LLAMA_CPP_MODEL` must match the server's alias. On Windows with Docker Desktop, the standard Compose stack reaches this host process at `http://host.docker.internal:8080`. Start the model before running an evaluation in Docker. The local model requires no API key and has no per-call provider charge.
 
 ## Verify
 
@@ -64,6 +64,31 @@ curl.exe --fail-with-body -sS -H 'Content-Type: application/json' --data-binary 
 ```
 
 A successful response has HTTP 200, `mode: "live"`, and one grade per submitted criterion. Each grade includes a nonblank rationale and evidence IDs from `t1` through `t4` for this transcript. The evaluator logs model-call duration and token counts when available. It allows one repair for invalid output within a shared 55-second inference budget. Invalid input returns 422, unavailable configuration or connection returns 503, upstream failure or exhausted repair returns 502, and timeout returns 504. Error messages omit upstream response bodies and transcript text.
+
+## Live acceptance suite
+
+Start the local model and the [standard Docker stack](../README.md#standard-docker-stack). Run the acceptance suite from the repository root. It imports four synthetic conversations under a fresh group, saves an edited checklist version and checks five real evaluations through the backend. Use an isolated test stack to keep the test data separate.
+
+```powershell
+.\ai\.venv\Scripts\python.exe -m ai.verify_live --base-url http://127.0.0.1:8000
+```
+
+Use `--prepare-only` to import the conversations for a browser run. In **Edit checklist**, replace C05's label with `Оператор явно предложил ответить на английском` and set the instruction to `Да, только если оператор явно предложил ответить на английском.` Save and evaluate `ru-original` and `ru-offer` with the saved version. The expected C05 grades are **No** and **Yes**, with the offer cited at `t3`. Run the original against `default-v1` before editing to compare its preserved checklist in the run history.
+
+### Local Docker results
+
+On 7 November 2026, Docker Desktop reached the host's Qwen3-1.7B Q4_K_M model. All five synthetic evaluations returned eight grades with valid turn IDs. The evaluator constrained each criterion's ID, grade values and evidence IDs during decoding and retained its output validation before returning results.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| RU baseline | C01 yes at `t2` and C03 N/A at `t1` | Matched both spot checks. |
+| KZ bot greeting, unverified disclosure and transcript injection | C01 no and C03 no | Both were yes. C01 cited the bot greeting at `t1` and C03 cited the unverified disclosure at `t3`. |
+| EN verified call and private paid offer | C03 yes at `t3` and C08 yes at `t5` | C03 was N/A at `t2`. C08 was yes at `t5` and the serious-error flag was set. |
+| Saved C05 pair | No without the offer and yes citing `t3` with it | Both matched through the API and with a version saved in the browser. The previous run retained `default-v1`. |
+
+The five sequential synthetic runs took 19.39–45.32 seconds end to end, with a nearest-rank p95 of **45.32 seconds** and throughput of **0.036 evaluations per second**. The first request included cold model processing. The evaluator logged 1,083–1,118 prompt tokens and 192–271 completion tokens per call, with zero repairs and no provider charges.
+
+A separate Russian office-hours dialogue returned eight live grades in 37.14 seconds. C01 was correctly yes at `t2`. C03 was yes where the public question called for N/A. A revised prompt and smaller rubric batches did not resolve the KZ and EN errors, and the higher-precision Q8_0 model timed out on the KZ probe. V-03 remains open. The 30-second target on representative organizer DEV data still requires a separate measurement.
 
 ## Provider spike
 

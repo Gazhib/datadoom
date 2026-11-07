@@ -75,11 +75,13 @@ class Criterion(ContractModel):
         return self
 
     def allows(self, value: GradeValue) -> bool:
-        if value == "na":
-            return self.allow_na
-        if self.kind == "scale":
-            return value in self.scale
-        return value in ("yes", "no")
+        return value in self.allowed_values()
+
+    def allowed_values(self) -> list[GradeValue]:
+        values: list[GradeValue] = list(self.scale) if self.kind == "scale" else ["yes", "no"]
+        if self.allow_na:
+            values.append("na")
+        return values
 
 
 class Checklist(ContractModel):
