@@ -1,5 +1,33 @@
 # Backend acceptance status · 7 November 2026
 
+## Agent 2 implementation update
+
+Implemented the shared contract v1.1 backend additions: independent evaluator
+timeouts (600 seconds default), process-wide bounded evaluator concurrency,
+forward-compatible panel storage, migration 2 and durable evaluation jobs,
+restart recovery, batch resume/cancel, latest summaries, judges proxy, bounded
+NDJSON progress with legacy fallback, schema 1.0 results export/check/download,
+and the API-based control run with import, resume, subset selection and export.
+
+Verification in this checkout:
+
+- Before changes: **94 tests passed**.
+- First expanded suite: **155 tests passed** in 78.88 seconds.
+- After completing the real-process control workflow and tightening stream event
+  validation: **28 focused control/configuration/panel/stream tests passed** in
+  17.88 seconds. The full suite was not repeated after these final changes.
+- Ruff lint, format verification, strict mypy and whitespace checks passed.
+
+The focused control test launches an actual local Uvicorn backend and invokes
+the CLI as a subprocess. It exercises organizer import through the API, durable
+jobs, a failed evaluation exported as an error row, resume, schema/count checks,
+and subset selection. All inputs and evaluator responses are synthetic.
+
+V-01 was retried and returned `configuration_unavailable`: no organizer URL is
+configured. No official data, live model run, official results file or real
+latency measurement was produced. See `HANDOFF.md` for the remaining external
+acceptance gates and `README.md` for the control runbook.
+
 Scope: T-003–T-005 and the backend portions of the public v1 contract in
 `../requirements.md`. Frontend behavior, model inference, deployment and submission
 remain with their assigned owners. Only files in `backend/` were changed.
