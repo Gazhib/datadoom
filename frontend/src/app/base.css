@@ -1,26 +1,28 @@
 :root {
   font-family: "Onest Variable", "Segoe UI", system-ui, sans-serif;
-  color: #17231d;
-  background: #f6f8f7;
+  color: #182534;
+  background: #f4f3ef;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --ink: #17231d;
-  --muted: #52635a;
-  --line: #dce5de;
-  --input-line: #bfcfc4;
+  --ink: #182534;
+  --muted: #526071;
+  --line: #dce1e7;
+  --input-line: #bdc7d4;
   --paper: #fff;
-  --rail: #073c2b;
-  --accent: #19713d;
-  --accent-hover: #125732;
-  --accent-soft: #e9f5ec;
-  --surface: #f3f7f4;
-  --score: #419c46;
-  --evidence: #fff2d8;
-  --radius: 10px;
+  --signal: #142537;
+  --accent: #2548bd;
+  --accent-hover: #173587;
+  --accent-soft: #edf1ff;
+  --accent-line: #c4d0f3;
+  --surface: #f4f6f9;
+  --positive: #185c48;
+  --positive-soft: #e5f4ed;
+  --evidence: #fff3d9;
+  --radius: 12px;
   --mono: "Cascadia Code", Consolas, monospace;
-  --rail-width: 174px;
-  --gutter: clamp(16px, 2vw, 34px);
+  --gutter: clamp(18px, 3.2vw, 50px);
+  --workspace-width: 1512px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -31,13 +33,13 @@ button, summary, select { cursor: pointer; }
 button:disabled, select:disabled { cursor: default; opacity: .5; }
 a { color: inherit; }
 h1, h2, h3, h4, p, ol, ul, dl, dd { margin: 0; }
-::selection { color: #103d27; background: #cfe9d7; }
+::selection { color: var(--accent-hover); background: #dbe4ff; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .sr-only, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip-link { position: fixed; z-index: 10; top: 12px; left: 12px; padding: 12px 18px; background: var(--paper); border: 1px solid var(--accent); border-radius: 6px; }
 
 @media (max-width: 760px) {
-  :root { --rail-width: 0px; --gutter: 13px; }
+  :root { --gutter: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

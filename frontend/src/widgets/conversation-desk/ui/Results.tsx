@@ -11,16 +11,6 @@ const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 const points = (value: number | null) => value === null ? '—' : number.format(value)
 const deduction = (item: Score['items'][number]) => (item.effective_weight ?? 0) - (item.points ?? 0)
 
-function ScoreDial({ total }: { total: Score['total'] }) {
-  return <div className="score-dial">
-      <svg viewBox="0 0 144 144" fill="none" aria-hidden="true">
-        <circle cx="72" cy="72" r="65" className="dial-track" />
-        {total !== null && total > 0 && <circle cx="72" cy="72" r="65" className="dial-progress" pathLength="100" strokeDasharray={`${total} 100`} transform="rotate(-90 72 72)" />}
-      </svg>
-      <div className="dial-center"><strong>{points(total)}</strong><span>{total === null ? 'No score' : '/ 100'}</span></div>
-  </div>
-}
-
 export function Results({ evaluation, conversation, target, running, onEvidence, onUpdated, comparison }: {
   evaluation: Evaluation
   conversation: Conversation
@@ -46,8 +36,19 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
   const evidence = focusedEvidence?.filter((turn) => turn.speaker === 'operator').at(-1) ?? focusedEvidence?.at(-1)
 
   return <>
-    <div className="score-overview">
-      <ScoreDial total={final.total} />
+    <div className="score-summary">
+      <div className="score-summary-heading">
+        <span className="score-caption">Final score</span>
+        <span className={`flag-label${final.serious_error ? ' flag-raised' : ''}`}><Icon name={final.serious_error ? 'flag' : 'shield'} size={15} /> {final.serious_error ? 'Serious error flagged' : 'No serious errors'}</span>
+      </div>
+      <p className="score-value">{final.total === null ? <span>No score</span> : <><strong>{points(final.total)}</strong> <span>/ 100</span></>}</p>
+      {final.total !== null && <div className="score-scale" aria-hidden="true">
+        <div className="score-track"><span style={{ width: `${final.total}%` }} /></div>
+        <div className="score-ticks">{[0, 25, 50, 75, 100].map((tick) => <span key={tick}>{tick}</span>)}</div>
+      </div>}
+    </div>
+    {featured.length > 0 && <div className="score-overview">
+      <h3>Key criteria</h3>
       <ul className="score-highlights" aria-label="Featured criteria">
         {featured.map((item) => {
           const status = item.value === 'na' ? 'na' : item.points === 0 ? 'missed' : deduction(item) > .01 ? 'partial' : 'met'
@@ -62,7 +63,7 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
           </button></li>
         })}
       </ul>
-    </div>
+    </div>}
     {focused && <div className="score-explanation">
       <h3>{deduction(focused) > .01 ? 'Why points were deducted' : focused.value === 'na' ? 'Why this criterion does not apply' : 'How this criterion was scored'}</h3>
       <p lang={conversation.language === 'RU' && evaluation.mode === 'fixture' ? 'ru' : undefined}>{focused.reason}</p>
@@ -74,10 +75,6 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
           criterion={focusedCriterion} original={focusedOriginal} appeal={appealsById.get(focusedCriterion.id)} turns={conversation.turns} disabled={running} onUpdated={onUpdated} />}
       </div>
     </div>}
-    <div className="score-provenance">
-      <span className={`flag-label${final.serious_error ? ' flag-raised' : ''}`}><Icon name={final.serious_error ? 'flag' : 'shield'} size={16} /> {final.serious_error ? 'Serious error flagged' : 'No serious errors'}</span>
-      <span className={`mode-badge ${evaluation.mode === 'fixture' ? 'mode-synthetic' : 'mode-live'}`}>{evaluation.mode === 'fixture' ? 'Synthetic result' : 'Live result'}</span>
-    </div>
     {appeals.some((appeal) => appeal.status === 'resolved') && <dl className="review-totals" aria-label="Review score comparison">
       <div><dt>Original total</dt><dd>{points(original.total)}</dd></div>
       <div><dt>Final total</dt><dd>{points(final.total)}</dd></div>
@@ -85,6 +82,7 @@ export function Results({ evaluation, conversation, target, running, onEvidence,
     <div className="result-tools">
       <div className="result-meta">
         <span className="version-chip">{checklist.version_id}</span>
+        <span className={`mode-badge ${evaluation.mode === 'fixture' ? 'mode-synthetic' : 'mode-live'}`}>{evaluation.mode === 'fixture' ? 'Demo result' : 'Live result'}</span>
         <span className="model-label">{model.provider} / {model.model}</span>
         <span className="run-identifier">Run {evaluation.id}</span>
       </div>

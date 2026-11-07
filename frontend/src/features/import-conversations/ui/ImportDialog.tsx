@@ -68,8 +68,8 @@ function ImportForm({ onImported, onClose }: { onImported: (result: ImportResult
 export function ImportDialog({ onImported, disabled }: { onImported: (result: ImportResult) => void; disabled: boolean }) {
   const [open, setOpen] = useState(false)
   return <>
-    <button className="button button-outline" type="button" disabled={disabled} onClick={() => setOpen(true)}>
-      <Icon name="upload" /> Import conversations
+    <button className="button button-outline" type="button" aria-label="Import conversations" aria-haspopup="dialog" disabled={disabled} onClick={() => setOpen(true)}>
+      <Icon name="upload" size={17} /> Import
     </button>
     {open && <ImportForm onImported={onImported} onClose={() => setOpen(false)} />}
   </>

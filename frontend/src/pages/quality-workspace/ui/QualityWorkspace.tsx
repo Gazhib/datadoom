@@ -25,15 +25,15 @@ function ConversationPicker({ items, selected, loading, error, onRetry, onSelect
     && [item.conversation_id, item.group_id, item.channel, item.language]
       .some((value) => value.toLowerCase().includes(query.trim().toLowerCase())))
 
-  return <Dialog title="Dialogues" kicker="CQA workspace" pending={false} onClose={onClose}>
-    <label className="queue-search"><Icon name="search" size={18} /><span className="sr-only">Search dialogues</span>
+  return <Dialog title="Conversations" kicker="CQA workspace" pending={false} onClose={onClose}>
+    <label className="queue-search"><Icon name="search" size={18} /><span className="sr-only">Search conversations</span>
       <input type="search" value={query} placeholder="Find by ID, group or language" onChange={(event) => setQuery(event.target.value)} />
     </label>
     <div className="queue-filters" role="group" aria-label="Filter by channel">
       {(['all', 'chat', 'call'] as const).map((value) => <button type="button" key={value} aria-pressed={channel === value} onClick={() => setChannel(value)}>{value === 'all' ? 'All' : value === 'chat' ? 'Chats' : 'Calls'}</button>)}
     </div>
     {error && <div className="workspace-alert"><p className="inline-error" role="alert">{error}</p><button className="button button-outline" onClick={onRetry}>Retry list</button></div>}
-    {loading && <p className="queue-notice" role="status">Loading dialogues…</p>}
+    {loading && <p className="queue-notice" role="status">Loading conversations…</p>}
     <ul className="queue-list">
       {available.map((item) => <li key={item.key}>
         <button className="queue-item" type="button" aria-current={selected?.key === item.key ? 'true' : undefined} onClick={() => onSelect(item)}>
@@ -43,7 +43,7 @@ function ConversationPicker({ items, selected, loading, error, onRetry, onSelect
         </button>
       </li>)}
     </ul>
-    {!loading && !error && !available.length && <p className="queue-notice">{items.length ? 'No dialogues match your search.' : 'Import a group or a JSON transcript to get started.'}</p>}
+    {!loading && !error && !available.length && <p className="queue-notice">{items.length ? 'No conversations match your search.' : 'Import a group or a JSON transcript to get started.'}</p>}
   </Dialog>
 }
 
@@ -95,18 +95,24 @@ export function QualityWorkspace() {
 
   return <>
     <a className="skip-link" href="#main">Skip to workspace</a>
-    <aside className="app-rail" aria-label="Workspace sidebar">
-      <button className="rail-brand" type="button" onClick={() => show('analysis')} aria-label="CQA home">
-        <span className="brand-mark"><Icon name="waveform" size={21} /></span><span>CQA</span>
-      </button>
-      <nav className="rail-links" aria-label="Workspace">
-        <button className="rail-link" type="button" disabled={running} aria-haspopup="dialog" onClick={() => setPicker(true)}><Icon name="chat" size={20} /><span>Dialogues</span></button>
-        <EditChecklist checklist={version} disabled={running} onSaved={handleSaved} rail />
-        <button className="rail-link" type="button" aria-current={view === 'appeals' ? 'page' : undefined} onClick={() => show('appeals')}><Icon name="scales" size={20} /><span>Appeals</span></button>
-        <button className="rail-link" type="button" aria-current={view === 'analysis' ? 'page' : undefined} onClick={() => show('analysis')}><Icon name="chart" size={20} /><span>Analytics</span></button>
-      </nav>
-      <div className="rail-caption">Conversation<br />Quality Analytics</div>
-    </aside>
+    <header className="app-header">
+      <div className="app-header-inner">
+        <button className="app-brand" type="button" onClick={() => show('analysis')} aria-label="CQA home">
+          <span className="brand-mark"><Icon name="waveform" size={23} /></span>
+          <span className="brand-copy"><strong>CQA</strong><span>Conversation quality</span></span>
+        </button>
+        <nav className="app-nav" aria-label="Workspace">
+          <button className="nav-button" type="button" aria-current={view === 'analysis' ? 'page' : undefined} onClick={() => show('analysis')}><Icon name="chart" size={17} /><span>Review</span></button>
+          <button className="nav-button" type="button" disabled={running} aria-haspopup="dialog" onClick={() => setPicker(true)}><Icon name="chat" size={17} /><span>Conversations</span></button>
+          <EditChecklist checklist={version} disabled={running} onSaved={handleSaved} navigation />
+          <button className="nav-button" type="button" aria-current={view === 'appeals' ? 'page' : undefined} onClick={() => show('appeals')}><Icon name="scales" size={17} /><span>Appeals</span></button>
+        </nav>
+        <div className="workspace-utility">
+          <span className={`mode-badge ${isMockMode ? 'mode-synthetic' : 'mode-live'}`}><span className="mode-dot" />{isMockMode ? 'Demo mode' : 'Live API'}</span>
+          <ImportDialog onImported={handleImport} disabled={running} />
+        </div>
+      </div>
+    </header>
     {picker && <ConversationPicker items={items} selected={selected} loading={conversations.loading} error={conversations.error}
       onRetry={conversations.refresh} onClose={() => setPicker(false)} onSelect={(item) => {
         setSelectedKey(item.key)
@@ -114,17 +120,13 @@ export function QualityWorkspace() {
         show('analysis')
       }} />}
     <main className="workspace" id="main" tabIndex={-1}>
-      <div className="workspace-utility">
-        <span className={`mode-badge ${isMockMode ? 'mode-synthetic' : 'mode-live'}`}><span className="mode-dot" />{isMockMode ? 'Synthetic mode' : 'Live API'}</span>
-        <ImportDialog onImported={handleImport} disabled={running} />
-      </div>
       {imported && <p className="workspace-status" role="status"><Icon name="check" size={17} /> Group <strong>{imported.group_id}</strong> · {imported.imported} imported, {imported.skipped} skipped</p>}
       {savedVersions[0] && <p className="workspace-status" role="status"><Icon name="check" size={17} /> Saved checklist version <strong>{savedVersions[0].version_id}</strong></p>}
       {checklists.error && <div className="workspace-alert"><p className="inline-error" role="alert">Could not load checklists. {checklists.error}</p><button className="button button-outline" onClick={checklists.refresh}>Retry checklists</button></div>}
-      {conversations.error && !selected && <div className="workspace-alert"><p className="inline-error" role="alert">{conversations.error}</p><button className="button button-outline" onClick={conversations.refresh}>Retry dialogues</button></div>}
+      {conversations.error && !selected && <div className="workspace-alert"><p className="inline-error" role="alert">{conversations.error}</p><button className="button button-outline" onClick={conversations.refresh}>Retry conversations</button></div>}
       {selected ? <ConversationDesk key={selected.key} summary={selected} versions={versions} version={version} view={view}
         loadingChecklists={checklists.loading} onSelectVersion={setVersionId} onRunningChange={setRunning} onAnalysis={() => show('analysis')} />
-        : <div className="workspace-empty"><span className="empty-icon"><Icon name={view === 'appeals' ? 'scales' : 'chat'} size={24} /></span><h1>{conversations.loading ? 'Loading workspace…' : view === 'appeals' ? 'Appeals' : 'Conversation analysis'}</h1><p>{conversations.loading ? 'Retrieving dialogues.' : conversations.error ? 'Retry the dialogue list to continue.' : 'Import a group or upload a JSON transcript to get started.'}</p></div>}
+        : <div className="workspace-empty"><span className="empty-icon"><Icon name={view === 'appeals' ? 'scales' : 'chat'} size={24} /></span><h1>{conversations.loading ? 'Loading workspace…' : view === 'appeals' ? 'Appeals' : 'Conversation review'}</h1><p>{conversations.loading ? 'Retrieving conversations.' : conversations.error ? 'Retry the conversation list to continue.' : 'Import a group or upload a JSON transcript to get started.'}</p></div>}
     </main>
   </>
 }
