@@ -1,4 +1,4 @@
-import type { Checklist, Conversation, Grade } from './contract'
+import type { Checklist, Conversation, Grade } from '../model/contract'
 import syntheticCall from './synthetic-call.wav?url'
 
 const opening = 'Начало и понимание запроса'

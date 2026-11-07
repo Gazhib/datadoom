@@ -1,0 +1,8 @@
+.editor-note { margin-bottom: 12px; }
+.editor-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
+.editor-toolbar .field { min-width: 0; flex: 1 1 200px; margin-bottom: 0; }
+.editor-criterion { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfbfe; }
+.editor-fields { display: flex; flex-wrap: wrap; gap: 0 8px; }
+.editor-fields .field { min-width: 0; flex: 1 1 130px; }
+.editor-identity .field:first-child { flex: 0 1 100px; }
+.editor-fields .field:has(input[type="number"]) { flex-grow: 0; }

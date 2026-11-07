@@ -1,4 +1,4 @@
-import type { RawRecord } from './contract'
+import type { RawRecord } from '../model/contract'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)

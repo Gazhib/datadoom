@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
+import { errorMessage } from './errorMessage'
 
 type Remote<T> = { data: T | null; loading: boolean; error: string | null }
-
-export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Something went wrong. Try again.'
-}
 
 export function useRemote<T>(load: (signal: AbortSignal) => Promise<T>) {
   const [version, setVersion] = useState(0)

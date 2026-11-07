@@ -1,3 +1,4 @@
-export { isMockMode, qualityApi } from './api'
-export { parseUpload } from './upload'
-export type * from './contract'
+export { qualityApi } from './api/api'
+export { parseUpload } from './api/upload'
+export { allowedGradeValues, gradeLabel, validateCriterion } from './model/rubric'
+export type * from './model/contract'

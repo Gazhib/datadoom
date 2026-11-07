@@ -29,7 +29,8 @@ export type Criterion = {
   section: string | null
 }
 
-export type Checklist = { version_id: string; name: string; criteria: Criterion[] }
+export type ChecklistDraft = { name: string; criteria: Criterion[] }
+export type Checklist = ChecklistDraft & { version_id: string }
 export type Grade = {
   criterion_id: string
   value: 'yes' | 'no' | 'na' | number
@@ -76,6 +77,9 @@ export interface QualityApi {
   listConversations(signal?: AbortSignal): Promise<Items<ConversationSummary>>
   getConversation(key: string, signal?: AbortSignal): Promise<Conversation>
   listChecklists(signal?: AbortSignal): Promise<Items<Checklist>>
+  createChecklist(draft: ChecklistDraft): Promise<Checklist>
   listEvaluations(key: string, signal?: AbortSignal): Promise<Items<Evaluation>>
   evaluate(key: string, versionId: string): Promise<Evaluation>
+  submitAppeal(evaluationId: string, criterionId: string, comment: string): Promise<Evaluation>
+  decideAppeal(evaluationId: string, criterionId: string, decision: Decision): Promise<Evaluation>
 }

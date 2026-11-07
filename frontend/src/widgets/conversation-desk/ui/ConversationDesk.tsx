@@ -1,51 +1,57 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { qualityApi } from '../../../entities/quality'
 import type { Checklist, ConversationSummary, Evaluation } from '../../../entities/quality'
+import { useMutation } from '../../../shared/lib/useMutation'
+import { useRemote } from '../../../shared/lib/useRemote'
 import { Icon } from '../../../shared/ui/Icon'
-import { errorMessage, useRemote } from '../model/useRemote'
 import { Results } from './Results'
 import { Transcript } from './Transcript'
 import type { EvidenceTarget } from './Transcript'
+import './conversation-desk.css'
 
-export function ConversationDesk({ summary, checklists, loadingChecklists, onRunningChange }: {
+export function ConversationDesk({ summary, versions, version, loadingChecklists, onSelectVersion, onRunningChange }: {
   summary: ConversationSummary
-  checklists: Checklist[]
+  versions: Checklist[]
+  version?: Checklist
   loadingChecklists: boolean
+  onSelectVersion: (versionId: string) => void
   onRunningChange: (running: boolean) => void
 }) {
   const { key } = summary
   const conversation = useRemote(useCallback((signal: AbortSignal) => qualityApi.getConversation(key, signal), [key]))
   const history = useRemote(useCallback((signal: AbortSignal) => qualityApi.listEvaluations(key, signal), [key]))
-  const [versionId, setVersionId] = useState('')
   const [runId, setRunId] = useState('')
-  const [created, setCreated] = useState<Evaluation[]>([])
+  const [updates, setUpdates] = useState<Evaluation[]>([])
   const [target, setTarget] = useState<EvidenceTarget | null>(null)
-  const [runError, setRunError] = useState<string | null>(null)
-  const [running, setRunning] = useState(false)
-  const busy = useRef(false)
+  const { run, pending: running, error: runError } = useMutation()
 
-  const version = checklists.find((item) => item.version_id === versionId) ?? checklists[0]
-  const runs = [...created, ...(history.data?.items ?? []).filter((item) => !created.some((run) => run.id === item.id))]
+  const remoteRuns = history.data?.items ?? []
+  const updatesById = new Map(updates.map((item) => [item.id, item]))
+  const runs = [
+    ...updates.filter((item) => !remoteRuns.some((remote) => remote.id === item.id)),
+    ...remoteRuns.map((item) => updatesById.get(item.id) ?? item),
+  ]
   const evaluation = runs.find((item) => item.id === runId) ?? runs[0]
 
-  async function runEvaluation() {
-    if (!version || busy.current) return
-    busy.current = true
-    setRunning(true)
-    onRunningChange(true)
-    setRunError(null)
-    try {
-      const result = await qualityApi.evaluate(key, version.version_id)
-      setCreated((previous) => [result, ...previous])
-      setRunId(result.id)
-      setTarget(null)
-    } catch (failure) {
-      setRunError(errorMessage(failure))
-    } finally {
-      busy.current = false
-      setRunning(false)
-      onRunningChange(false)
-    }
+  function updateEvaluation(result: Evaluation) {
+    setUpdates((previous) => previous.some((item) => item.id === result.id)
+      ? previous.map((item) => item.id === result.id ? result : item)
+      : [result, ...previous])
+    setTarget(null)
+  }
+
+  function runEvaluation() {
+    if (!version) return
+    void run(async () => {
+      onRunningChange(true)
+      try {
+        const result = await qualityApi.evaluate(key, version.version_id)
+        updateEvaluation(result)
+        setRunId(result.id)
+      } finally {
+        onRunningChange(false)
+      }
+    })
   }
 
   return <section className="desk" aria-labelledby="conversation-heading">
@@ -59,12 +65,12 @@ export function ConversationDesk({ summary, checklists, loadingChecklists, onRun
       </div>
       <div className="run-controls">
         <label className="version-control"><span className="field-label">Checklist version</span>
-          <select value={version?.version_id ?? ''} onChange={(event) => setVersionId(event.target.value)} disabled={!version || running}>
+          <select value={version?.version_id ?? ''} onChange={(event) => onSelectVersion(event.target.value)} disabled={!version || running}>
             {!version && <option value="">{loadingChecklists ? 'Loading versions…' : 'No versions available'}</option>}
-            {checklists.map((checklist) => <option value={checklist.version_id} key={checklist.version_id}>{checklist.version_id} · {checklist.name}</option>)}
+            {versions.map((checklist) => <option value={checklist.version_id} key={checklist.version_id}>{checklist.version_id} · {checklist.name}</option>)}
           </select>
         </label>
-        <button type="button" className="button button-run" disabled={!version || !conversation.data || running} onClick={runEvaluation}>
+        <button type="button" className="button button-primary" disabled={!version || !conversation.data || running} onClick={runEvaluation}>
           <Icon name="play" size={16} /> {running ? 'Evaluating…' : 'Run evaluation'}
         </button>
       </div>
@@ -91,7 +97,8 @@ export function ConversationDesk({ summary, checklists, loadingChecklists, onRun
           {running && <p className="run-notice" role="status"><span className="spinner" /> Evaluating this conversation…</p>}
           {runError && <p className="inline-error" role="alert">{runError}</p>}
           {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>Retry history</button></div>}
-          {evaluation ? <Results evaluation={evaluation} conversation={conversation.data} target={target} onEvidence={setTarget} />
+          {evaluation ? <Results key={evaluation.id} evaluation={evaluation} conversation={conversation.data} target={target}
+            running={running} onEvidence={setTarget} onUpdated={updateEvaluation} />
             : history.loading ? <p className="empty-detail" role="status">Loading evaluation history…</p>
             : !history.error && !running && <div className="empty-detail"><span className="empty-icon"><Icon name="activity" size={23} /></span><h3>No evaluations yet</h3><p>Select a checklist version and run an evaluation to see grades and evidence for this conversation.</p></div>}
         </section>
