@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
@@ -141,3 +142,13 @@ def test_unconfigured_organizer_is_503(settings):
             client.post("/api/imports", json={"source": "organizer", "group_id": "DEV"}).status_code
             == 503
         )
+
+
+def test_signed_organizer_url_is_not_logged_at_info(settings, caplog):
+    caplog.set_level(logging.INFO, logger="httpx")
+    caplog.set_level(logging.DEBUG, logger="httpcore")
+    with TestClient(create_app(settings)) as client:
+        response = client.post("/api/imports", json={"source": "organizer", "group_id": "DEV"})
+    assert response.status_code == 200
+    assert "synthetic%2Btoken" not in caplog.text
+    assert "sig=" not in caplog.text

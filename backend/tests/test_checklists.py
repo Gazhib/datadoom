@@ -34,6 +34,54 @@ def test_versions_remain_immutable_after_restart(client, evaluation, settings, k
         assert restarted.get("/api/checklists").json()["items"] == [saved, original]
 
 
+def test_saved_replacement_reaches_evaluator_for_fresh_input_pair(
+    client, evaluation, records, key, stub
+):
+    # The HTTP stub simulates grades; this verifies backend forwarding, not inference.
+    checklist = deepcopy(evaluation["checklist"])
+    checklist.pop("version_id")
+    checklist["criteria"][4].update(
+        label="Оператор явно предложил ответить на английском",
+        instruction="Да, если оператор явно предложил ответить на английском.",
+    )
+    saved = client.post("/api/checklists", json=checklist).json()
+    stub.mode = "live"
+    stub.grades[4]["value"] = "no"
+    original = client.post(
+        "/api/evaluations",
+        json={"conversation_key": key, "checklist_version_id": saved["version_id"]},
+    )
+    assert original.status_code == 201
+    original_request = stub.requests[-1][2]
+
+    fresh = deepcopy(records[0])
+    fresh["conversation_id"] = "ru-fresh-english-offer"
+    fresh["transcript"][2]["text"] += " Могу ответить на английском."
+    assert (
+        client.post(
+            "/api/imports", json={"source": "upload", "group_id": "FRESH", "records": [fresh]}
+        ).status_code
+        == 200
+    )
+    fresh_key = client.get("/api/conversations?group_id=FRESH").json()["items"][0]["key"]
+    assert fresh_key != key
+    stub.grades[4].update(value="yes", evidence_turn_ids=["t3"])
+    changed = client.post(
+        "/api/evaluations",
+        json={"conversation_key": fresh_key, "checklist_version_id": saved["version_id"]},
+    )
+    assert changed.status_code == 201
+    changed_request = stub.requests[-1][2]
+    assert original_request["checklist"] == changed_request["checklist"] == saved
+    assert "Могу ответить" not in original_request["conversation"]["turns"][2]["text"]
+    assert "Могу ответить" in changed_request["conversation"]["turns"][2]["text"]
+    assert original.json()["mode"] == changed.json()["mode"] == "live"
+    assert original.json()["original"]["items"][4]["value"] == "no"
+    assert changed.json()["original"]["items"][4]["value"] == "yes"
+    assert changed.json()["original"]["items"][4]["evidence_turn_ids"] == ["t3"]
+    assert client.get(f"/api/evaluations/{evaluation['id']}").json() == evaluation
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

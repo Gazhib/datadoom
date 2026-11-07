@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
@@ -150,6 +151,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # HTTP transport diagnostics can include the complete signed organizer URL.
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
         database = Database(config.database_path)
         database.initialize()
         with httpx.Client(trust_env=False) as client:
@@ -184,6 +188,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @application.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
+        if exc.status_code == 400 and request.url.path.startswith("/api/"):
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": {
+                        "code": "invalid_input",
+                        "message": "Request body must contain valid JSON.",
+                    }
+                },
+            )
         return JSONResponse(
             status_code=exc.status_code,
             headers=exc.headers,

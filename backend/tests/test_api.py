@@ -71,6 +71,17 @@ def test_request_limit(client):
     assert response.json()["error"]["code"] == "invalid_input"
 
 
+@pytest.mark.parametrize("body", [b"\xff", b'{"source":"upload"}\xff'])
+def test_invalid_json_encoding_uses_validation_error(client, body):
+    response = client.post(
+        "/api/imports", content=body, headers={"Content-Type": "application/json"}
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_input"
+    assert response.headers["cache-control"] == "no-store"
+    assert client.get("/api/conversations").json() == {"items": []}
+
+
 def test_optional_built_frontend_and_api_precedence(settings, tmp_path):
     (tmp_path / "index.html").write_text("<!DOCTYPE html><title>Synthetic frontend build</title>")
     with TestClient(create_app(replace(settings, frontend_dir=tmp_path))) as client:
