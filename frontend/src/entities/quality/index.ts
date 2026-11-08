@@ -1,5 +1,6 @@
 export { demoRecordingOffsets, qualityApi } from './api/api'
 export { parseUpload } from './api/upload'
-export { allowedGradeValues, gradeLabel, validateCriterion } from './model/rubric'
+export { allowedGradeValues, gradeLabel, gradeTone, validateCriterion } from './model/rubric'
+export type { GradeTone } from './model/rubric'
 export { CriterionVotes, isSplitVote } from './ui/CriterionVotes'
 export type * from './model/contract'

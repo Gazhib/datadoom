@@ -11,7 +11,9 @@ import httpx
 
 from .config import JudgesConfig
 from .consensus import Ballot, decide, guaranteed_value
-from .contracts import EvaluationRequest, EvaluationResult, JudgeReport, JudgeStatus, Model, PanelReport, VoteReport
+from .contracts import (
+    EvaluationRequest, EvaluationResult, Grade, JudgeReport, JudgeStatus, Model, PanelReport, VoteReport,
+)
 from .errors import EvaluationError
 from .judge import Verdict, grade
 from .providers import Provider
@@ -46,6 +48,7 @@ class JudgeOutcome:
             host=self.route.provider.host, fallback=self.route.fallback and self.status != "skipped",
             status=self.status,
             error_code=self.error_code, seconds=self.seconds,
+            grades=[Grade.model_validate(grade.model_dump()) for grade in self.verdict.grades] if self.verdict else None,
         )
 
 

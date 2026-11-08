@@ -153,6 +153,8 @@ class PanelJudge(PanelData):
     status: Literal["ok", "failed", "skipped"]
     error_code: str | None
     seconds: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None
+    # Older evaluations and failed judges have no per-judge grades.
+    grades: list[Grade] | None = None
 
 
 class PanelVote(PanelData):

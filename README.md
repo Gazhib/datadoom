@@ -22,7 +22,7 @@ docker compose up --build -d --wait
 
 Open [Datadoom](http://127.0.0.1:8000) or the [API docs](http://127.0.0.1:8000/docs). Set `DATADOOM_PORT` in the root `.env` to change the host port. The backend serves the built frontend and keeps its SQLite database in the `sqlite` volume. `docker compose down` stops the stack and retains the database.
 
-All three judges in [ai/judges.yaml](ai/judges.yaml) use OpenAI GPT-6 Luna by default. Set `OPENAI_API_KEY` in the root `.env` before starting Compose. Edit each judge's `provider` and `model` in the YAML. The evaluator reads the file on each request.
+All three judges in [ai/judges.yaml](ai/judges.yaml) use OpenAI GPT-6.1 Sol with its default medium reasoning effort. Set `OPENAI_API_KEY` in the root `.env` before starting Compose. Edit each judge's `provider` and `model` in the YAML. The evaluator reads the file on each request.
 
 To enable organizer imports, set `ORGANIZER_GET_URL` in the root `.env`. Keep the full signed URL in single quotes. For a local smoke check, import [the synthetic fixture](backend/fixtures/synthetic.json) using **Import conversations**.
 

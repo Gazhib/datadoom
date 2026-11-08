@@ -66,6 +66,23 @@ def test_panel_forward_compatibility_persistence_old_payload_and_mismatch(
     assert "Dropped panel" in caplog.text
 
 
+def test_panel_keeps_valid_judge_grades_and_drops_invalid_evidence(client, key, stub, caplog):
+    stub.custom_response = {
+        "mode": "fixture",
+        "model": {"provider": "fixture", "model": "synthetic"},
+        "grades": stub.grades,
+        "panel": panel(stub.grades),
+    }
+    stub.custom_response["panel"]["judges"][0]["grades"] = stub.grades
+    assert evaluate(client, key).json()["panel"]["judges"][0]["grades"] == stub.grades
+    bad = [{**grade, "evidence_turn_ids": ["no-such-turn"]} for grade in stub.grades]
+    stub.custom_response["panel"]["judges"][0]["grades"] = bad
+    saved = evaluate(client, key).json()["panel"]
+    assert saved["judges"][0]["grades"] is None
+    assert len(saved["votes"]) == len(stub.grades)
+    assert "Dropped grades of judge judge-1" in caplog.text
+
+
 @pytest.mark.parametrize(
     "name,value",
     [

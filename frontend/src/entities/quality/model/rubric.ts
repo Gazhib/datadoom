@@ -16,6 +16,18 @@ export function gradeLabel(value: Grade['value'], criterion: Criterion | undefin
   return t(value)
 }
 
+export type GradeTone = 'positive' | 'negative' | 'scale' | 'na'
+
+// A "yes" on a flag criterion means the operator did something wrong. Scale ends read as met or missed.
+export function gradeTone(value: Grade['value'], criterion: Criterion | undefined): GradeTone {
+  if (value === 'na') return 'na'
+  if (typeof value === 'number') {
+    const max = criterion?.scale.at(-1)
+    return value === max ? 'positive' : value === 0 && max !== undefined ? 'negative' : 'scale'
+  }
+  return (value === 'yes') !== (criterion?.kind === 'flag') ? 'positive' : 'negative'
+}
+
 export function validateCriterion(criterion: Criterion): MessageKey | null {
   const { id, label, instruction, kind, weight, scale, allow_na, na_rule } = criterion
   if (!id.trim() || !label.trim() || !instruction.trim()) return 'criterionIdentityRequired'

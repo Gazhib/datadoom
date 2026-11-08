@@ -12,6 +12,7 @@ select { min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var
 .dialog::backdrop { background: color-mix(in srgb, var(--signal) 44%, transparent); backdrop-filter: blur(5px); }
 .dialog-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
 .dialog-heading .kicker { color: var(--accent); font-size: 9px; }
+.dialog-heading-actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
 .dialog-heading h2 { margin-top: 6px; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.04em; }
 .dialog fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .choice-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 18px; }

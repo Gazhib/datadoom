@@ -26,6 +26,8 @@ services:
     environment:
       - JUDGES_QUORUM
       - JUDGES_TIMEOUT_SECONDS
+      # Save each judge's grades, votes and agreement with the result so the UI can show judges separately.
+      - EVALUATOR_EMIT_PANEL=${EVALUATOR_EMIT_PANEL:-true}
       # Provider-wide settings and keys used when a judge leaves them unset.
       - LLAMA_CPP_URL=${LLAMA_CPP_URL:-http://host.docker.internal:8080}
       - LLAMA_CPP_MODEL

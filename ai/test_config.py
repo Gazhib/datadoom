@@ -26,12 +26,12 @@ class JudgeConfigTests(unittest.TestCase):
         self.assertEqual(interpolate("${MISSING}", env), "")
         self.assertEqual(interpolate({"a": ["x-${SET}"], "b": 3}, env), {"a": ["x-value"], "b": 3})
 
-    def test_default_file_defines_three_openai_luna_judges(self):
+    def test_default_file_defines_three_openai_sol_judges(self):
         config = load_judges(DEFAULT_JUDGES_FILE, {
             "JUDGE_1_PROVIDER": "ollama", "JUDGE_1_MODEL": "qwen3:8b", "JUDGE_1_URL": "http://lan.test:11434",
         })
         self.assertEqual([judge.name for judge in config.judges], ["judge-1", "judge-2", "judge-3"])
-        self.assertEqual({(judge.provider, judge.model) for judge in config.judges}, {("openai", "gpt-6-luna")})
+        self.assertEqual({(judge.provider, judge.model) for judge in config.judges}, {("openai", "gpt-6.1-sol")})
         self.assertEqual((config.quorum, config.panel.timeout_seconds), (2, 540))
         self.assertTrue(all(judge.url is None and judge.temperature is None for judge in config.judges))
 

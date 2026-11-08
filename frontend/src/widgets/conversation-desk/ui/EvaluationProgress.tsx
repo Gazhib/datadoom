@@ -4,6 +4,7 @@ import type { Checklist, Evaluation, EvaluationJob, Turn } from '../../../entiti
 import { errorMessage } from '../../../shared/lib/errorMessage'
 import { useMutation } from '../../../shared/lib/useMutation'
 import { Icon } from '../../../shared/ui/Icon'
+import { jobJudges } from '../model/judgeVerdicts'
 import { JudgeResults } from './JudgeResults'
 import type { EvidenceTarget } from './Transcript'
 import './evaluation-progress.css'
@@ -45,19 +46,18 @@ function JobProgress({ job, now, checklist, evidence, onCancel, onRetry }: {
     {job.error && <p className="inline-error" role="alert">
       {job.error.code === 'fixture_failure' ? t('demoEvaluationFailure') : job.error.message}
     </p>}
-    {evidence && !!job.progress?.judges.length && <JudgeResults job={job} checklist={checklist}
-      turns={new Map(evidence.turns?.map((turn) => [turn.id, turn]))}
+    {evidence && !!job.progress?.judges.length && <JudgeResults judges={jobJudges(job)} checklist={checklist}
+      turns={new Map(evidence.turns?.map((turn) => [turn.id, turn]))} source={`judge:${job.id}:`}
       target={evidence.target} onEvidence={evidence.onEvidence} />}
     {job.id.startsWith('sync-') && <p className="form-note">{t('keepTabOpen')}</p>}
     {error && <p className="inline-error" role="alert">{error}</p>}
   </section>
 }
 
-export function EvaluationProgress({ jobs, versions, runs, evaluation, evidence, starting, failure, onCancel, onRetry }: {
+export function EvaluationProgress({ jobs, versions, runs, evidence, starting, failure, onCancel, onRetry }: {
   jobs: EvaluationJob[]
   versions: Checklist[]
   runs: Evaluation[]
-  evaluation?: Evaluation
   evidence?: Evidence
   starting: boolean
   failure?: { error: Error; versionId: string }
@@ -73,10 +73,11 @@ export function EvaluationProgress({ jobs, versions, runs, evaluation, evidence,
     return () => clearInterval(timer)
   }, [running])
   const latest = jobs[0]
+  // A finished run stays here only until its saved result loads; the verdict pane shows it after that.
   const visible = jobs.filter((job) => active(job) ||
     (!starting && job === latest && (job.status === 'failed' || job.status === 'cancelled')) ||
     (evidence && job.status === 'succeeded' && job.progress?.judges.length &&
-      (job.evaluation_id === evaluation?.id || (job === latest && !runs.some((run) => run.id === job.evaluation_id)))))
+      job === latest && !runs.some((run) => run.id === job.evaluation_id)))
 
   return <>
     {starting && !visible.length && <p className="run-notice" role="status"><span className="spinner" /> {t('startingEvaluation')}</p>}

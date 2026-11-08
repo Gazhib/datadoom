@@ -109,20 +109,24 @@ export function fixturePanel(grades: Grade[], checklist: Checklist, skipLast: bo
     ...judge, fallback: false, status: skipLast && index === 2 ? 'skipped' as const : 'ok' as const,
     seconds: skipLast && index === 2 ? null : judge.seconds, error_code: null,
   }))
-  const votes = grades.map((grade) => {
+  const judgeGrade = (grade: Grade, name: string): Grade => {
     const criterion = checklist.criteria.find(({ id }) => id === grade.criterion_id)
-    const ballots = Object.fromEntries(judges.filter(({ status }) => status === 'ok').map((judge) => [
-      judge.name,
-      // Deliberately split the synthetic defense example; production UI never depends on this ID.
-      grade.criterion_id === 'C06' && grade.value === 7 && judge.name === 'judge-3' && criterion?.scale.includes(10)
-        ? 10 : grade.value,
-    ]))
+    // Deliberately split the synthetic defense example; production UI never depends on this ID.
+    return grade.criterion_id === 'C06' && grade.value === 7 && name === 'judge-3' && criterion?.scale.includes(10)
+      ? { ...grade, value: 10, reason: 'Synthetic split vote: this judge reads the closing turn as fully resolving the request.' }
+      : grade
+  }
+  const panelJudges = judges.map((judge) => ({
+    ...judge, grades: judge.status === 'ok' ? grades.map((grade) => judgeGrade(grade, judge.name)) : null,
+  }))
+  const votes = grades.map((grade, index) => {
+    const ballots = Object.fromEntries(panelJudges.flatMap((judge) => judge.grades ? [[judge.name, judge.grades[index].value]] : []))
     return {
       criterion_id: grade.criterion_id, value: grade.value, ballots,
       agreement: Object.values(ballots).filter((value) => value === grade.value).length / Object.keys(ballots).length,
     }
   })
-  return { quorum: 2, judges, votes, agreement: votes.length ? votes.reduce((sum, vote) => sum + vote.agreement, 0) / votes.length : 1 }
+  return { quorum: 2, judges: panelJudges, votes, agreement: votes.length ? votes.reduce((sum, vote) => sum + vote.agreement, 0) / votes.length : 1 }
 }
 
 // Cue points measured in the bundled recording. Transcript timestamps are source data.

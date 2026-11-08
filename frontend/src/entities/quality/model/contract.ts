@@ -93,6 +93,8 @@ export type Panel = {
     status: 'ok' | 'failed' | 'skipped'
     error_code: string | null
     seconds: number | null
+    // Each judge's own grades. Older evaluations and failed judges omit them.
+    grades?: Grade[] | null
   }[]
   votes: PanelVote[]
 }

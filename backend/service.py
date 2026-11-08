@@ -190,6 +190,13 @@ class Service:
             }:
                 logging.getLogger(__name__).warning("Dropped panel with mismatched criterion IDs")
                 result.panel = None
+        for judge in result.panel.judges if result.panel else []:
+            try:
+                if judge.grades is not None:
+                    validate_grades(judge.grades, checklist, conversation)
+            except ValueError:
+                logging.getLogger(__name__).warning("Dropped grades of judge %s with invalid evidence", judge.name)
+                judge.grades = None
         evaluation = Evaluation(
             id=uuid4().hex,
             conversation_key=conversation_key,

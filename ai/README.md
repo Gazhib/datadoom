@@ -4,7 +4,7 @@ T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and
 
 ## Judge panel
 
-All three seats in [`judges.yaml`](judges.yaml) use OpenAI GPT-6 Luna. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
+All three seats in [`judges.yaml`](judges.yaml) use OpenAI GPT-6.1 Sol with its default medium reasoning effort. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
 
 - **Yes/no and N/A:** plurality, with ties going to the earliest judge who chose a tied value.
 - **Scale:** plurality decides whether N/A applies. Otherwise the lower median of numeric votes wins.
@@ -26,7 +26,7 @@ Edit each judge's `provider` and `model` in `ai/judges.yaml`. The evaluator rere
 | `JUDGES_KEEP_ALIVE` | `30m` | Ollama model residency; `JUDGE_N_KEEP_ALIVE` overrides for one judge. |
 | `OLLAMA_NUM_CTX` | Automatic | Fix the Ollama context window. Automatic sizing estimates the prompt plus output and margin (4,096–16,384 tokens); larger prompts fail as `transcript_too_long`. |
 | `EVALUATOR_ENGINE` | `langgraph` | Use `legacy` for the asyncio orchestration with the same contract. |
-| `EVALUATOR_EMIT_PANEL` | `false` | Set `true` after the backend supports the optional judge statuses, routes and ballots. |
+| `EVALUATOR_EMIT_PANEL` | `false` (`true` in Compose) | Attach the judge panel (statuses, routes, ballots and each judge's grades) to the result. The backend and UI need it to show judges separately. |
 | `EVALUATOR_ALLOW_TRACING` | `false` | Keep LangSmith and LangChain tracing off unless explicitly enabled. |
 
 ## Providers

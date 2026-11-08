@@ -141,6 +141,8 @@ class JudgeReport(ContractModel):
     status: JudgeStatus
     error_code: str | None
     seconds: float | None
+    # This judge's own grades, kept so reviewers can compare reasons and cited turns per judge.
+    grades: list[Grade] | None = None
 
 
 class VoteReport(ContractModel):

@@ -15,7 +15,7 @@
 .judge-ok { color: var(--positive); }
 .judge-failed { color: #973232; }
 .judge-skipped { color: #775018; }
-.judge-tab-panel { max-block-size: min(24rem, 55dvh); overflow: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); }
+.judge-tab-panel { padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); }
 .judge-detail { margin-bottom: 6px; overflow-wrap: anywhere; }
 .judge-grades { padding: 0; list-style: none; }
 .criterion-title.judge-criterion-title { grid-template-columns: minmax(0, 1fr) auto; }

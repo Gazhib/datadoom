@@ -11,6 +11,9 @@ import { Results } from './Results'
 import { RunComparison } from './RunComparison'
 import { Transcript } from './Transcript'
 import { EvaluationProgress } from './EvaluationProgress'
+import { TurnVerdicts } from './TurnVerdicts'
+import { VerdictPane } from './VerdictPane'
+import { evaluationJudges, turnMarks, turnRows } from '../model/judgeVerdicts'
 import type { EvidenceTarget } from './Transcript'
 import './conversation-desk.css'
 
@@ -41,6 +44,7 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
   const [comparing, setComparing] = useState(false)
   const compareButton = useRef<HTMLButtonElement>(null)
   const [duration, setDuration] = useState<number | null>(null)
+  const [openTurn, setOpenTurn] = useState<string | null>(null)
   const selectedVersionRunning = starting || jobs.some((job) =>
     job.checklist_version_id === version?.version_id && (job.status === 'queued' || job.status === 'running'))
   const newestCompletedId = completed[0]?.id
@@ -56,6 +60,16 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
   const runs = remoteRuns.map((item) => reviewsById.get(item.id) ?? item)
   const evaluation = runs.find((item) => item.id === runId) ?? runs[0]
   const isCall = summary.channel === 'voice call'
+  const turns = conversation.data?.turns ?? []
+  const judges = evaluation ? evaluationJudges(evaluation, jobs) : []
+  const marks = evaluation && new Map(turns.map((turn) => [turn.id, turnMarks(turnRows(turn.id, evaluation, judges), judges)]))
+  const judgeView = evaluation && conversation.data
+    ? { judges, checklist: evaluation.checklist, turns: new Map(turns.map((turn) => [turn.id, turn])), source: `judge:${evaluation.id}:` }
+    : null
+  const inColumns = view === 'analysis' && !!conversation.data
+  const progress = <EvaluationProgress jobs={jobs} versions={versions} runs={runs} starting={starting}
+    evidence={view === 'analysis' ? { turns: conversation.data?.turns, target, onEvidence: setTarget } : undefined}
+    failure={failure} onCancel={onCancel} onRetry={onRun} />
   const recording = isCall ? recordingLink(conversation.data?.audio_url ?? null) : null
 
   const runHistory = runs.length > 1 && <label className="run-history">
@@ -96,9 +110,7 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
     </header>
     {conversation.error && <div className="desk-message"><p role="alert">{conversation.error}</p><button className="button button-outline" onClick={conversation.refresh}>{t('retryTranscript')}</button></div>}
     {!conversation.data && conversation.loading && <p className="desk-message" role="status">{t('loadingTranscript')}</p>}
-    <EvaluationProgress jobs={jobs} versions={versions} runs={runs} evaluation={evaluation} starting={starting}
-      evidence={view === 'analysis' ? { turns: conversation.data?.turns, target, onEvidence: setTarget } : undefined}
-      failure={failure} onCancel={onCancel} onRetry={onRun} />
+    {!inColumns && progress}
     {conversation.data && view === 'appeals' && <section className="pane appeals-pane" aria-labelledby="appeals-heading">
       <header className="pane-heading"><div><h2 id="appeals-heading">{t('conversationAppeals')}</h2>{evaluation && <p className="form-note">{t('checklistReference', { version: evaluation.checklist.version_id })}</p>}</div>{runHistory}</header>
       {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>{t('retryHistory')}</button></div>}
@@ -129,13 +141,9 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
           {recording && <RecordingPlayer key={recording} url={recording} turns={conversation.data.turns} duration={duration}
             offsets={demoRecordingOffsets(conversation.data)} target={target} onDuration={setDuration} />}
           {isCall && !recording && <div className="recording-unavailable pane"><Icon name="phone" size={18} /> {t('callRecordingUnavailable')}</div>}
-          <Transcript conversation={conversation.data} target={target} />
+          <Transcript conversation={conversation.data} target={target} marks={marks || undefined} activeId={openTurn} onOpen={setOpenTurn} />
         </div>
-        <section className="results pane" aria-labelledby="results-heading">
-          <header className="pane-heading">
-            <h2 id="results-heading" tabIndex={-1}>{t('qualityScore')}</h2>
-            {runHistory}
-          </header>
+        <VerdictPane runHistory={runHistory} progress={progress} judgeView={judgeView} target={target} onEvidence={setTarget}>
           {history.error && <div className="history-error"><p className="inline-error" role="alert">{history.error}</p><button className="button button-outline" onClick={history.refresh}>{t('retryHistory')}</button></div>}
           {evaluation && version && evaluation.checklist.version_id !== version.version_id && <p className="version-notice">
             {t('savedVersionNotice', { saved: evaluation.checklist.version_id, selected: version.version_id })}
@@ -147,9 +155,11 @@ export function ConversationDesk({ summary, versions, version, loadingChecklists
               <Icon name="layers" size={16} /> {comparing ? t('closeComparison') : t('compareVersions')}
             </button>} />
             : history.loading ? <p className="empty-detail" role="status">{t('loadingHistory')}</p>
-            : !history.error && <div className="empty-detail"><span className="empty-icon"><Icon name="activity" size={23} /></span><h3>{t('noEvaluations')}</h3><p>{t('noEvaluationsHelp')}</p></div>}
-        </section>
+            : !history.error && !jobs.some((job) => job.status === 'queued' || job.status === 'running') && <div className="empty-detail"><span className="empty-icon"><Icon name="activity" size={23} /></span><h3>{t('noEvaluations')}</h3><p>{t('noEvaluationsHelp')}</p></div>}
+        </VerdictPane>
       </div>
+      {openTurn && evaluation && <TurnVerdicts conversation={conversation.data} evaluation={evaluation} judges={judges}
+        turnId={openTurn} onNavigate={setOpenTurn} onClose={() => setOpenTurn(null)} />}
       {comparing && evaluation && <div id="run-comparison" className="pane comparison-panel" tabIndex={-1} aria-label={t('checklistComparison')}>
         <div className="comparison-actions"><button className="button button-outline" type="button" onClick={toggleComparison}><Icon name="close" size={16} /> {t('closeComparison')}</button></div>
         <RunComparison key={evaluation.id} runs={runs} current={evaluation} conversation={conversation.data}
