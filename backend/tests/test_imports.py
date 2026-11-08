@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.config import Settings
 from backend.main import create_app
 from backend.upstream import organizer_url
 
@@ -115,6 +116,24 @@ def test_organizer_uses_http_wrapper_and_empty_success(client, stub):
         ]
         == 0
     )
+
+
+def test_named_organizer_groups_fetch_their_upstream_id(client, stub):
+    for name, upstream in (("CHECKER", "FBroker"), ("SWAP", "Swap")):
+        response = client.post("/api/imports", json={"source": "organizer", "group_id": name})
+        assert response.status_code == 200, response.text
+        assert response.json()["group_id"] == name
+        assert f"group_id={upstream}&" in stub.requests[-1][1]
+        listing = client.get(f"/api/conversations?group_id={name}").json()["items"]
+        assert [row["group_id"] for row in listing] == [name]
+
+
+def test_organizer_groups_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("ORGANIZER_GROUPS", "CONTROL = P2 , SWAP=Swap")
+    assert Settings.from_env().organizer_groups == {"CONTROL": "P2", "SWAP": "Swap"}
+    monkeypatch.setenv("ORGANIZER_GROUPS", "broken")
+    with pytest.raises(ValueError, match="ORGANIZER_GROUPS"):
+        Settings.from_env()
 
 
 @pytest.mark.parametrize(

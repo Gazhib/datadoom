@@ -10,6 +10,9 @@ services:
       - EVALUATOR_URL=http://evaluator:8001
       - EVALUATOR_STREAM=${EVALUATOR_STREAM:-true}
       - ORGANIZER_GET_URL
+      # Named groups for the import dialog, e.g. CHECKER=FBroker,SWAP=Swap (that is the default).
+      - ORGANIZER_GROUPS
+      - RESULTS_TEAM_NAME
       - UPSTREAM_TIMEOUT_SECONDS
     ports:
       - "127.0.0.1:${DATADOOM_PORT:-8000}:8000"

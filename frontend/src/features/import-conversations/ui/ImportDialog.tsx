@@ -9,6 +9,9 @@ import { useMutation } from '../../../shared/lib/useMutation'
 import { Dialog } from '../../../shared/ui/Dialog'
 import { Icon } from '../../../shared/ui/Icon'
 
+// DEV is the training set; CHECKER (FBroker) is the 10-chat control set; SWAP (Swap) is the criterion-swap check.
+const ORGANIZER_GROUPS = ['DEV', 'CHECKER', 'SWAP'] as const
+
 function ImportForm({ onImported, onClose }: { onImported: (result: ImportResult) => void; onClose: () => void }) {
   const { t } = useI18n()
   const [source, setSource] = useState<'organizer' | 'upload'>('organizer')
@@ -53,6 +56,10 @@ function ImportForm({ onImported, onClose }: { onImported: (result: ImportResult
           <span className="field-label">{t('groupId')}</span>
           <input value={group} onChange={(event) => setGroup(event.target.value)} required={source === 'organizer'} placeholder={source === 'upload' ? 'UPLOAD' : isMockMode ? 'SYNTH' : 'DEV'} />
         </label>
+        {source === 'organizer' && !isMockMode && <div className="choice-row" role="group" aria-label={t('groupId')}>
+          {ORGANIZER_GROUPS.map((name) => <button key={name} type="button" aria-pressed={group === name}
+            className={`button ${group === name ? 'button-primary' : 'button-outline'}`} onClick={() => setGroup(name)}>{name}</button>)}
+        </div>}
         {source === 'organizer' && isMockMode && <p className="form-note">{t('demoImportHelp', { group: 'SYNTH' })}</p>}
         {source === 'upload' && <label className="field">
           <span className="field-label">{t('transcriptFile')}</span>

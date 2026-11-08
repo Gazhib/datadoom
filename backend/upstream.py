@@ -104,7 +104,10 @@ class Upstream:
     def organizer_records(self, group_id: str) -> list[RawRecord]:
         if not self.settings.organizer_get_url:
             raise APIError(503, "configuration_unavailable", "Organizer import is not configured.")
-        body = self.request_json("GET", organizer_url(self.settings.organizer_get_url, group_id))
+        upstream_group = self.settings.organizer_groups.get(group_id, group_id)
+        body = self.request_json(
+            "GET", organizer_url(self.settings.organizer_get_url, upstream_group)
+        )
         if not isinstance(body, dict) or body.get("isSuccess") is not True:
             raise APIError(
                 502, "invalid_upstream_response", "Organizer returned an unsuccessful response."
