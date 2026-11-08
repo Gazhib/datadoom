@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { qualityApi } from '../../../entities/quality'
 import type { Evaluation, EvaluationJob } from '../../../entities/quality'
 import { UiError } from '../../../shared/i18n/messages'
+import { useI18n } from '../../../shared/i18n/useI18n'
 import { captureError } from '../../../shared/lib/errorMessage'
 
 export const isActiveJob = (job: EvaluationJob) => job.status === 'queued' || job.status === 'running'
@@ -10,6 +11,7 @@ type RunFailure = { error: Error; versionId: string }
 
 // The page owns runs so switching conversations never tears down an evaluation.
 export function useEvaluationJobs(conversationKey?: string) {
+  const { locale } = useI18n()
   const [jobs, setJobs] = useState<EvaluationJob[]>([])
   const jobsRef = useRef<EvaluationJob[]>([])
   const [completed, setCompleted] = useState<Evaluation[]>([])
@@ -121,7 +123,7 @@ export function useEvaluationJobs(conversationKey?: string) {
     setFailures((previous) => ({ ...previous, [key]: undefined }))
     const legacyId = `sync-${crypto.randomUUID()}`
     try {
-      const job = await qualityApi.startEvaluationJob(key, versionId)
+      const job = await qualityApi.startEvaluationJob(key, versionId, locale)
       if (job) {
         if (mounted.current) {
           mergeJobs([job])
@@ -136,7 +138,7 @@ export function useEvaluationJobs(conversationKey?: string) {
             queue_position: null, progress: null, evaluation_id: null, error: null,
           }])
         }
-        const evaluation = await qualityApi.evaluate(key, versionId)
+        const evaluation = await qualityApi.evaluate(key, versionId, locale)
         if (mounted.current) rememberEvaluation(evaluation)
       }
     } catch (error) {
@@ -151,7 +153,7 @@ export function useEvaluationJobs(conversationKey?: string) {
   }
 
   async function startGroup(groupId: string, versionId: string) {
-    const result = await qualityApi.startGroupEvaluation(groupId, versionId)
+    const result = await qualityApi.startGroupEvaluation(groupId, versionId, locale)
     if (!mounted.current) return
     if (!result) {
       setGroupSupported(false)

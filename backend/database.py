@@ -53,6 +53,10 @@ MIGRATIONS = [
         )""",
         "CREATE INDEX evaluation_jobs_status ON evaluation_jobs(status)",
     ],
+    [
+        "ALTER TABLE evaluation_jobs ADD COLUMN reason_locale TEXT "
+        "CHECK (reason_locale IN ('en', 'ru', 'kk'))",
+    ],
 ]
 
 

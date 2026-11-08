@@ -20,6 +20,7 @@ from .models import (
     ImportRequest,
     ImportResult,
     LatestEvaluation,
+    ReasonLocale,
     Turn,
 )
 from .scoring import calculate_score, validate_grade, validate_grades
@@ -164,11 +165,15 @@ class Service:
         conversation_key: str,
         checklist_version_id: str,
         progress: Callable[[dict[str, Any]], None] | None = None,
+        *,
+        reason_locale: ReasonLocale | None = None,
     ) -> Evaluation:
         conversation = self.get_conversation(conversation_key)
         checklist = self.get_checklist(checklist_version_id)
         # Network I/O and validation happen before opening the write transaction.
-        result = self.upstream.evaluate(conversation, checklist, progress=progress)
+        result = self.upstream.evaluate(
+            conversation, checklist, progress=progress, reason_locale=reason_locale
+        )
         try:
             validate_grades(result.grades, checklist, conversation)
         except ValueError:

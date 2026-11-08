@@ -27,9 +27,10 @@ def import_keys(client, records, count=3):
     return [c["key"] for c in client.get("/api/conversations").json()["items"]]
 
 
-def enqueue(client, key, version="default-v1"):
+def enqueue(client, key, version="default-v1", **options):
     return client.post(
-        "/api/evaluation-jobs", json={"conversation_key": key, "checklist_version_id": version}
+        "/api/evaluation-jobs",
+        json={"conversation_key": key, "checklist_version_id": version, **options},
     )
 
 
@@ -67,7 +68,7 @@ def test_failure_preserves_runs_restart_recovers_and_batch_resumes(
     fixture = evaluate(client, keys[0]).json()
     stub.mode = "live"
     live = evaluate(client, keys[1]).json()
-    request = {"group_id": "SYNTH", "checklist_version_id": "default-v1"}
+    request = {"group_id": "SYNTH", "checklist_version_id": "default-v1", "reason_locale": "kk"}
     batch = client.post("/api/evaluation-jobs/batch", json=request)
     assert batch.status_code == 202
     jobs = batch.json()["items"]
@@ -77,10 +78,11 @@ def test_failure_preserves_runs_restart_recovers_and_batch_resumes(
     stub.status = 503
     assert manager.run_one()
     assert manager.get(jobs[0]["id"]).error.code == "upstream_failure"
+    assert stub.requests[-1][2]["reason_locale"] == "kk"
     assert client.get(f"/api/evaluations?conversation_key={keys[0]}").json()["items"] == [fixture]
     assert client.get(f"/api/evaluations/{live['id']}").status_code == 200
     running = manager.claim()
-    queued = enqueue(client, keys[1]).json()
+    queued = enqueue(client, keys[1], reason_locale="ru").json()
     with TestClient(create_app(settings, start_workers=False)) as restarted:
         assert (
             restarted.get(f"/api/evaluation-jobs/{running.id}").json()["error"]["code"]
@@ -90,6 +92,18 @@ def test_failure_preserves_runs_restart_recovers_and_batch_resumes(
         stub.status = 200
         assert Jobs(restarted.app.state.service).run_one()
         assert restarted.get(f"/api/evaluation-jobs/{queued['id']}").json()["status"] == "succeeded"
+        assert stub.requests[-1][2]["reason_locale"] == "ru"
+
+
+def test_batch_reuses_only_jobs_in_the_requested_language(queued_client, records):
+    import_keys(queued_client, records, 1)
+    request = {"group_id": "SYNTH", "checklist_version_id": "default-v1"}
+    route = "/api/evaluation-jobs/batch"
+    russian = queued_client.post(route, json={**request, "reason_locale": "ru"}).json()["items"]
+    kazakh = queued_client.post(route, json={**request, "reason_locale": "kk"}).json()["items"]
+    assert russian[0]["id"] != kazakh[0]["id"]
+    repeated = queued_client.post(route, json={**request, "reason_locale": "ru"}).json()["items"]
+    assert repeated == russian
 
 
 def test_unexpected_worker_failure_logs_only_type(queued_client, records, monkeypatch, caplog):

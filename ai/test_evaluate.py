@@ -196,6 +196,7 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         self.assertEqual(str(upstream.url), "http://127.0.0.1:8080/v1/chat/completions")
         self.assertNotIn("authorization", upstream.headers)
         self.assertEqual(system["role"], "system")
+        self.assertIn("Write every reason in English", system["content"])
         rubric = json.loads(system["content"].split("Checklist JSON:\n")[1])
         for rule, criterion in zip(rubric, self.data["checklist"]["criteria"], strict=True):
             for field in ("id", "label", "instruction"):
@@ -322,6 +323,7 @@ class SingleJudgeContractTests(EvaluatorTestCase):
 
     def test_openai_uses_strict_schema_and_reports_resolved_model(self):
         self.use_judges({"name": "solo", "provider": "openai"})
+        self.data["reason_locale"] = "ru"
         with patch.dict(os.environ, {"OPENAI_API_KEY": "openai-test-key"}):
             response = self.post(completion([self.binary, self.scale], "gpt-5.4-mini-2026-03-17"))
 
@@ -329,6 +331,7 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         self.assertEqual(str(upstream.url), "https://api.openai.com/v1/chat/completions")
         self.assertEqual(upstream.headers["authorization"], "Bearer openai-test-key")
         payload = self.requests[0]
+        self.assertIn("Write every reason in Russian", payload["messages"][0]["content"])
         self.assertEqual(payload["model"], "gpt-5.4-mini")
         self.assertFalse(payload["store"])
         self.assertNotIn("temperature", payload)
@@ -608,6 +611,7 @@ class ThreeJudgePanelTests(EvaluatorTestCase):
         self.assertEqual(response.json()["error"]["code"], "provider_unavailable")
 
     def test_repair_stays_with_its_judge(self):
+        self.data["reason_locale"] = "kk"
         routes = self.agreeing()
         invalid = [self.binary, dict(self.scale, evidence_turn_ids=["unknown"])]
         routes["qwen"] = [ollama(invalid, "qwen"), ollama([self.binary, self.scale], "qwen")]
@@ -617,6 +621,7 @@ class ThreeJudgePanelTests(EvaluatorTestCase):
         for request in self.requests:
             prompts.setdefault(request["model"], []).append(request["messages"][0]["content"])
         self.assertEqual(len(prompts["qwen"]), 2)
+        self.assertTrue(all("Write every reason in Kazakh" in prompt for prompt in prompts["qwen"]))
         self.assertIn("Cite only exact turn IDs", prompts["qwen"][1])
         for model in ("gemma", "phi"):
             self.assertEqual(len(prompts[model]), 1)

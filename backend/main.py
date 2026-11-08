@@ -129,7 +129,9 @@ def create_checklist(body: ChecklistCreate, service: ServiceDep) -> Checklist:
 
 @router.post("/evaluations", status_code=201)
 def evaluate(body: EvaluationCreate, service: ServiceDep) -> Evaluation:
-    return service.evaluate(body.conversation_key, body.checklist_version_id)
+    return service.evaluate(
+        body.conversation_key, body.checklist_version_id, reason_locale=body.reason_locale
+    )
 
 
 @router.get("/evaluations")

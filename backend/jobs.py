@@ -15,7 +15,7 @@ import httpx
 from .config import Settings
 from .database import Database
 from .errors import APIError
-from .models import EvaluationCreate, EvaluationJob, JobBatch, JobError, JobProgress
+from .models import EvaluationCreate, EvaluationJob, JobBatch, JobError, JobProgress, ReasonLocale
 from .service import Service, missing
 from .upstream import Upstream
 
@@ -55,6 +55,7 @@ class Jobs:
                     "started_at",
                     "finished_at",
                     "evaluation_id",
+                    "reason_locale",
                 )
             },
             queue_position=position,
@@ -86,13 +87,15 @@ class Jobs:
             return [self._read(connection, row["id"]) for row in rows]
 
     @staticmethod
-    def _insert(connection: sqlite3.Connection, key: str, version: str) -> str:
+    def _insert(
+        connection: sqlite3.Connection, key: str, version: str, reason_locale: ReasonLocale | None
+    ) -> str:
         job_id = uuid4().hex
         connection.execute(
             "INSERT INTO evaluation_jobs "
-            "(id, conversation_key, checklist_version_id, status, created_at) "
-            "VALUES (?, ?, ?, 'queued', ?)",
-            (job_id, key, version, now()),
+            "(id, conversation_key, checklist_version_id, status, created_at, reason_locale) "
+            "VALUES (?, ?, ?, 'queued', ?, ?)",
+            (job_id, key, version, now(), reason_locale),
         )
         return job_id
 
@@ -101,12 +104,17 @@ class Jobs:
         self.service.get_checklist(request.checklist_version_id)
         with self.database.transaction(write=True) as connection:
             job_id = self._insert(
-                connection, request.conversation_key, request.checklist_version_id
+                connection,
+                request.conversation_key,
+                request.checklist_version_id,
+                request.reason_locale,
             )
             return self._read(connection, job_id)
 
     def batch(self, request: JobBatch) -> list[EvaluationJob]:
-        self.service.get_checklist(request.checklist_version_id)
+        version = request.checklist_version_id
+        locale = request.reason_locale
+        self.service.get_checklist(version)
         conversations = self.service.list_conversations(request.group_id)
         with self.database.transaction(write=True) as connection:
             ids = []
@@ -115,21 +123,22 @@ class Jobs:
                     completed = connection.execute(
                         "SELECT 1 FROM evaluations WHERE conversation_key = ? "
                         "AND checklist_version_id = ? AND mode = 'live' LIMIT 1",
-                        (conversation.key, request.checklist_version_id),
+                        (conversation.key, version),
                     ).fetchone()
                     if completed:
                         continue
                     # Reusing active work makes repeated batch requests safe during resume.
                     active = connection.execute(
                         "SELECT id FROM evaluation_jobs WHERE conversation_key = ? "
-                        "AND checklist_version_id = ? AND status IN ('queued', 'running') "
+                        "AND checklist_version_id = ? AND COALESCE(reason_locale, 'en') = ? "
+                        "AND status IN ('queued', 'running') "
                         "ORDER BY rowid LIMIT 1",
-                        (conversation.key, request.checklist_version_id),
+                        (conversation.key, version, locale or "en"),
                     ).fetchone()
                     if active:
                         ids.append(active["id"])
                         continue
-                ids.append(self._insert(connection, conversation.key, request.checklist_version_id))
+                ids.append(self._insert(connection, conversation.key, version, locale))
             return [self._read(connection, job_id) for job_id in ids]
 
     def cancel(self, job_id: str) -> EvaluationJob:
@@ -210,6 +219,7 @@ class Jobs:
                 job.conversation_key,
                 job.checklist_version_id,
                 progress=lambda event: self.progress(job.id, event),
+                reason_locale=job.reason_locale,
             )
             evaluation_id = evaluation.id
         except APIError as exc:

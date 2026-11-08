@@ -1,3 +1,5 @@
+import type { Locale } from '../../../shared/i18n/messages'
+
 export type Speaker = 'client' | 'operator' | 'bot' | 'system'
 export type Channel = 'agent chat' | 'voice call'
 export type Language = 'RU' | 'KZ' | 'EN'
@@ -156,12 +158,12 @@ export interface QualityApi {
   createChecklist(draft: ChecklistDraft): Promise<Checklist>
   listEvaluations(key: string, signal?: AbortSignal): Promise<Items<Evaluation>>
   getEvaluation(id: string, signal?: AbortSignal): Promise<Evaluation>
-  evaluate(key: string, versionId: string): Promise<Evaluation>
+  evaluate(key: string, versionId: string, locale: Locale): Promise<Evaluation>
   // null means that the optional route is unavailable on this backend.
-  startEvaluationJob(key: string, versionId: string): Promise<EvaluationJob | null>
+  startEvaluationJob(key: string, versionId: string, locale: Locale): Promise<EvaluationJob | null>
   getEvaluationJob(id: string, signal?: AbortSignal): Promise<EvaluationJob>
   listEvaluationJobs(filters?: JobFilters, signal?: AbortSignal): Promise<Items<EvaluationJob>>
-  startGroupEvaluation(groupId: string, versionId: string): Promise<Items<EvaluationJob> | null>
+  startGroupEvaluation(groupId: string, versionId: string, locale: Locale): Promise<Items<EvaluationJob> | null>
   cancelEvaluationJob(id: string): Promise<EvaluationJob>
   getJudges(signal?: AbortSignal): Promise<JudgeStatus | null>
   exportResults(groupId: string, versionId: string, teamName: string, signal?: AbortSignal): Promise<ResultsExport | null>

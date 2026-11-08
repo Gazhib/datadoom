@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 Nonblank = Annotated[str, Field(min_length=1, pattern=r"\S")]
 StrictInteger = Annotated[int, Field(strict=True)]
 Speaker = Literal["client", "operator", "bot", "system"]
+ReasonLocale = Literal["en", "ru", "kk"]
 
 
 class Contract(BaseModel):
@@ -233,12 +234,14 @@ class Evaluation(Contract):
 class EvaluationCreate(Contract):
     conversation_key: Nonblank
     checklist_version_id: Nonblank
+    reason_locale: ReasonLocale | None = None
 
 
 class JobBatch(Contract):
     group_id: Nonblank
     checklist_version_id: Nonblank
     skip_existing: bool = True
+    reason_locale: ReasonLocale | None = None
 
 
 class JobError(Contract):
@@ -271,6 +274,7 @@ class EvaluationJob(Contract):
     progress: JobProgress | None
     evaluation_id: str | None
     error: JobError | None
+    reason_locale: ReasonLocale | None = Field(default=None, exclude=True)
 
 
 class JobList(Contract):

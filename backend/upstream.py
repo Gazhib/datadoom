@@ -10,7 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 from .concurrency import evaluation_slots
 from .config import Settings
 from .errors import APIError
-from .models import Checklist, Conversation, EvaluatorResult, JudgeProgress, RawRecord
+from .models import Checklist, Conversation, EvaluatorResult, JudgeProgress, RawRecord, ReasonLocale
 from .scoring import validate_grades
 
 _stream_lock = Lock()
@@ -141,22 +141,25 @@ class Upstream:
         checklist: Checklist,
         *,
         progress: Callable[[dict[str, Any]], None] | None = None,
+        reason_locale: ReasonLocale | None = None,
     ) -> EvaluatorResult:
         url = self.settings.evaluator_url
         validate_service_url(url, "Evaluator")
+        payload: dict[str, Any] = {
+            "conversation": conversation.model_dump(), "checklist": checklist.model_dump()
+        }
+        if reason_locale is not None:
+            payload["reason_locale"] = reason_locale
         # Only remote evaluation consumes a slot. No database transaction is open here.
         with evaluation_slots(self.settings.evaluation_concurrency):
             with _stream_lock:
                 stream = self.settings.evaluator_stream and url not in _stream_unavailable
-            body = self._stream(url, conversation, checklist, progress) if stream else None
+            body = self._stream(url, conversation, checklist, payload, progress) if stream else None
             if body is None:
                 body = self.request_json(
                     "POST",
                     url.rstrip("/") + "/evaluate",
-                    payload={
-                        "conversation": conversation.model_dump(),
-                        "checklist": checklist.model_dump(),
-                    },
+                    payload=payload,
                     timeout=self.settings.evaluator_timeout,
                     max_bytes=2_000_000,
                 )
@@ -181,6 +184,7 @@ class Upstream:
         url: str,
         conversation: Conversation,
         checklist: Checklist,
+        payload: dict[str, Any],
         progress: Callable[[dict[str, Any]], None] | None,
     ) -> Any:
         def invalid() -> APIError:
@@ -193,10 +197,7 @@ class Upstream:
             with self.client.stream(
                 "POST",
                 url.rstrip("/") + "/evaluate/stream",
-                json={
-                    "conversation": conversation.model_dump(),
-                    "checklist": checklist.model_dump(),
-                },
+                json=payload,
                 timeout=self.settings.evaluator_timeout,
                 follow_redirects=False,
             ) as response:

@@ -9,9 +9,10 @@ from backend.main import create_app
 from backend.scoring import half_up
 
 
-def evaluate(client, key, version="default-v1"):
+def evaluate(client, key, version="default-v1", **options):
     return client.post(
-        "/api/evaluations", json={"conversation_key": key, "checklist_version_id": version}
+        "/api/evaluations",
+        json={"conversation_key": key, "checklist_version_id": version, **options},
     )
 
 

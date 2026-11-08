@@ -10,7 +10,7 @@ from backend.jobs import Jobs
 from backend.main import create_app
 from backend.models import Evaluation
 from backend.tests.test_evaluations import evaluate
-from backend.tests.test_jobs import enqueue
+from backend.tests.test_jobs import enqueue, import_keys
 
 
 def panel(grades):
@@ -100,31 +100,47 @@ def test_evaluator_timeout_is_independent(client, settings, stub, key, monkeypat
         assert response.status_code == 504
 
 
-def test_migration_two_preserves_existing_data(tmp_path):
+@pytest.mark.parametrize("version", [1, 2])
+def test_migrations_preserve_existing_data(tmp_path, version):
     path = tmp_path / "old.sqlite3"
     with sqlite3.connect(path) as connection:
-        for statement in MIGRATIONS[0]:
-            connection.execute(statement)
-        connection.execute("PRAGMA user_version = 1")
+        for migration in MIGRATIONS[:version]:
+            for statement in migration:
+                connection.execute(statement)
+        connection.execute(f"PRAGMA user_version = {version}")
         connection.execute("INSERT INTO checklists VALUES ('old-version', 'saved')")
+        if version == 2:
+            connection.execute(
+                "INSERT INTO conversations VALUES ('key', 'group', 'id', '{}', '{}')"
+            )
+            connection.execute(
+                "INSERT INTO evaluation_jobs "
+                "(id, conversation_key, checklist_version_id, status, created_at) "
+                "VALUES ('old-job', 'key', 'old-version', 'queued', '2026-11-01')"
+            )
     Database(path).initialize()
     with sqlite3.connect(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
         assert (
             connection.execute(
                 "SELECT payload FROM checklists WHERE version_id = 'old-version'"
             ).fetchone()[0]
             == "saved"
         )
-        assert connection.execute("SELECT COUNT(*) FROM evaluation_jobs").fetchone()[0] == 0
+        rows = connection.execute(
+            "SELECT id, status, reason_locale FROM evaluation_jobs"
+        ).fetchall()
+        assert rows == ([("old-job", "queued", None)] if version == 2 else [])
 
 
-def test_stream_progress_and_result_are_saved(settings, client, key, stub):
+def test_stream_progress_and_result_are_saved(settings, records, stub):
     with TestClient(
         create_app(replace(settings, evaluator_stream=True), start_workers=False)
     ) as streamed:
-        job = enqueue(streamed, key).json()
+        key = import_keys(streamed, records, 1)[0]
+        job = enqueue(streamed, key, reason_locale="kk").json()
         assert Jobs(streamed.app.state.service).run_one()
+        assert stub.requests[-1][2]["reason_locale"] == "kk"
         done = streamed.get(f"/api/evaluation-jobs/{job['id']}").json()
         assert done["status"] == "succeeded"
         assert done["progress"] == {
@@ -145,10 +161,13 @@ def test_stream_progress_and_result_are_saved(settings, client, key, stub):
 def test_stream_fallback_remembered(settings, client, key, stub, status):
     stub.stream_status = status
     with TestClient(create_app(replace(settings, evaluator_stream=True))) as streamed:
-        assert evaluate(streamed, key).status_code == 201
+        assert evaluate(streamed, key, reason_locale="ru").status_code == 201
         assert evaluate(streamed, key).status_code == 201
     assert [r[1] for r in stub.requests].count("/evaluate/stream") == 1
     assert [r[1] for r in stub.requests].count("/evaluate") == 2
+    payloads = [body for _, path, body in stub.requests if path.startswith("/evaluate")]
+    assert [body.get("reason_locale") for body in payloads] == ["ru", "ru", None]
+    assert "reason_locale" not in payloads[-1]
 
 
 @pytest.mark.parametrize(
@@ -193,7 +212,7 @@ def test_stream_error_keeps_prior_evaluation(settings, client, key, evaluation, 
     "bad_grade",
     [None, {"criterion_id": "unknown"}, {"value": 99}, {"evidence_turn_ids": ["unknown"]}],
 )
-def test_partial_grades_survive_panel_failure(settings, client, key, stub, bad_grade):
+def test_partial_grades_survive_panel_failure(settings, records, stub, bad_grade):
     stub.stream_events = [
         {"event": "started", "judges": ["judge-1", "judge-2", "judge-3"]},
         {"event": "judge_finished", "judge": "judge-2", "status": "ok", "grades": stub.grades},
@@ -214,6 +233,7 @@ def test_partial_grades_survive_panel_failure(settings, client, key, stub, bad_g
     with TestClient(
         create_app(replace(settings, evaluator_stream=True), start_workers=False)
     ) as streamed:
+        key = import_keys(streamed, records, 1)[0]
         job = enqueue(streamed, key).json()
         assert Jobs(streamed.app.state.service).run_one()
         done = streamed.get(f"/api/evaluation-jobs/{job['id']}").json()

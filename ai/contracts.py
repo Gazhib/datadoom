@@ -101,6 +101,7 @@ class Checklist(ContractModel):
 class EvaluationRequest(ContractModel):
     conversation: Conversation
     checklist: Checklist
+    reason_locale: Literal["en", "ru", "kk"] = "en"
 
 
 class Grade(ContractModel):
