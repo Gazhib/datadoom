@@ -20,11 +20,13 @@ import './workspace.css'
 const conversationLanguages = { RU: 'russian', KZ: 'kazakh', EN: 'english' } as const
 const conversationLocales = { RU: 'ru', KZ: 'kk', EN: 'en' } as const
 
-function ConversationPicker({ items, selected, loading, error, onRetry, onSelect, onClose }: {
+function ConversationPicker({ items, selected, loading, error, groupFilter, onGroupFilterChange, onRetry, onSelect, onClose }: {
   items: ConversationSummary[]
   selected?: ConversationSummary
   loading: boolean
   error: string | null
+  groupFilter: string
+  onGroupFilterChange: (group: string) => void
   onRetry: () => void
   onSelect: (item: ConversationSummary) => void
   onClose: () => void
@@ -33,8 +35,11 @@ function ConversationPicker({ items, selected, loading, error, onRetry, onSelect
   const searchInput = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [channel, setChannel] = useState<'all' | 'chat' | 'call'>('all')
+  const groups = [...new Set(items.map((item) => item.group_id))]
+  const group = groups.includes(groupFilter) ? groupFilter : ''
   const search = query.trim().toLowerCase()
   const available = items.filter((item) => {
+    if (group && item.group_id !== group) return false
     if (channel !== 'all' && item.channel !== (channel === 'chat' ? 'agent chat' : 'voice call')) return false
     const language = conversationLanguages[item.language]
     return [item.conversation_id, item.group_id, item.channel, item.language, t(language),
@@ -46,8 +51,18 @@ function ConversationPicker({ items, selected, loading, error, onRetry, onSelect
     <label className="queue-search"><Icon name="search" size={18} /><span className="sr-only">{t('searchConversations')}</span>
       <input ref={searchInput} type="search" value={query} placeholder={t('searchConversationsHint')} onChange={(event) => setQuery(event.target.value)} />
     </label>
-    <div className="queue-filters" role="group" aria-label={t('filterChannel')}>
-      {(['all', 'chat', 'call'] as const).map((value) => <button type="button" key={value} aria-pressed={channel === value} onClick={() => setChannel(value)}>{value === 'all' ? t('all') : value === 'chat' ? t('chats') : t('calls')}</button>)}
+    <div className="queue-controls">
+      <div className="queue-filters" role="group" aria-label={t('filterChannel')}>
+        {(['all', 'chat', 'call'] as const).map((value) => <button type="button" key={value} aria-pressed={channel === value} onClick={() => setChannel(value)}>{value === 'all' ? t('all') : value === 'chat' ? t('chats') : t('calls')}</button>)}
+      </div>
+      <label className="queue-group">
+        <Icon name="folder" size={16} />
+        <span className="sr-only">{t('conversationGroup')}</span>
+        <select value={group} disabled={!groups.length} onChange={(event) => onGroupFilterChange(event.target.value)}>
+          <option value="">{t('allGroups')}</option>
+          {groups.map((id) => <option key={id} value={id}>{id}</option>)}
+        </select>
+      </label>
     </div>
     {error && <div className="workspace-alert"><p className="inline-error" role="alert">{error}</p><button className="button button-outline" onClick={onRetry}>{t('retryList')}</button></div>}
     {loading && <p className="queue-notice" role="status">{t('loadingConversations')}</p>}
@@ -79,6 +94,7 @@ export function QualityWorkspace() {
   const [versionId, setVersionId] = useState(() => new URLSearchParams(location.search).get('v') ?? '')
   const [savedVersions, setSavedVersions] = useState<Checklist[]>([])
   const [picker, setPicker] = useState(false)
+  const [groupFilter, setGroupFilter] = useState('')
   const switchButton = useRef<HTMLButtonElement>(null)
   const [view, setView] = useState<'analysis' | 'appeals'>(() => new URLSearchParams(location.search).get('view') === 'appeals' ? 'appeals' : 'analysis')
 
@@ -176,6 +192,7 @@ export function QualityWorkspace() {
       </div>
     </header>
     {picker && <ConversationPicker items={pickerItems} selected={selected} loading={conversations.loading} error={conversations.error}
+      groupFilter={groupFilter} onGroupFilterChange={setGroupFilter}
       onRetry={conversations.refresh} onClose={() => setPicker(false)} onSelect={(item) => {
         setSelectedKey(item.key)
         setPicker(false)

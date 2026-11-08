@@ -23,6 +23,7 @@ export const ru: Catalog = {
   searchConversations: "Поиск диалогов",
   searchConversationsHint: "Поиск по ID, группе или языку",
   filterChannel: "Фильтр по каналу",
+  allGroups: "Все группы",
   all: "Все",
   chats: "Чаты",
   calls: "Звонки",

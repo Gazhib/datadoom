@@ -21,6 +21,7 @@ export const en = {
   searchConversations: "Search conversations",
   searchConversationsHint: "Find by ID, group or language",
   filterChannel: "Filter by channel",
+  allGroups: "All groups",
   all: "All",
   chats: "Chats",
   calls: "Calls",

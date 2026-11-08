@@ -23,6 +23,7 @@ export const kk: Catalog = {
   searchConversations: "Диалогтарды іздеу",
   searchConversationsHint: "ID, топ немесе тіл бойынша іздеу",
   filterChannel: "Арна бойынша сүзу",
+  allGroups: "Барлық топтар",
   all: "Барлығы",
   chats: "Чаттар",
   calls: "Қоңыраулар",
