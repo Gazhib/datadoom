@@ -1,5 +1,7 @@
 # Datadoom
 
+Built by **NSYNC**.
+
 ## Docker development
 
 From the repository root, start the frontend, backend, and evaluator with Docker Compose v2.32 or later and a Linux container engine.
@@ -43,7 +45,7 @@ Set `ORGANIZER_GROUPS=NAME=group_id,...` in `.env` to change the mapping. To eva
 ```bash
 docker compose exec backend python -m backend.cli --via-api http://127.0.0.1:8000 \
   --import-organizer --group-id CHECKER --checklist-version-id default-v1 \
-  --team-name DataDoom --expect-count 10 --export /tmp/results.json
+  --team-name NSYNC --expect-count 10 --export /tmp/results.json
 docker compose cp backend:/tmp/results.json results/prod/results.json
 ```
 
