@@ -12,6 +12,7 @@ if [[ ! -x "$evaluator_python" ]]; then
     exit 1
 fi
 
+export EVALUATOR_JUDGES_FILE=ai/presets/three-laptops-lan.yaml
 export JUDGE_1_PROVIDER=ollama JUDGE_1_MODEL=qwen3:8b JUDGE_1_URL="http://$mac_ip:11434"
 export JUDGE_2_PROVIDER=ollama JUDGE_2_MODEL=gemma3:4b JUDGE_2_URL="http://$windows_ip:11434"
 export JUDGE_3_PROVIDER=ollama JUDGE_3_MODEL=llama3.2:3b JUDGE_3_URL=http://127.0.0.1:11434

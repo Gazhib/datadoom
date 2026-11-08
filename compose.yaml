@@ -24,24 +24,8 @@ services:
       # Edit the judge panel on the host. The next evaluation reads it without a rebuild.
       - ./ai/judges.yaml:/app/ai/judges.yaml:ro
     environment:
-      # Per-judge overrides for ai/judges.yaml. Set them in the root .env.
       - JUDGES_QUORUM
       - JUDGES_TIMEOUT_SECONDS
-      - JUDGE_1_PROVIDER
-      - JUDGE_1_MODEL
-      - JUDGE_1_URL
-      - JUDGE_1_API_KEY_ENV
-      - JUDGE_1_TEMPERATURE
-      - JUDGE_2_PROVIDER
-      - JUDGE_2_MODEL
-      - JUDGE_2_URL
-      - JUDGE_2_API_KEY_ENV
-      - JUDGE_2_TEMPERATURE
-      - JUDGE_3_PROVIDER
-      - JUDGE_3_MODEL
-      - JUDGE_3_URL
-      - JUDGE_3_API_KEY_ENV
-      - JUDGE_3_TEMPERATURE
       # Provider-wide settings and keys used when a judge leaves them unset.
       - LLAMA_CPP_URL=${LLAMA_CPP_URL:-http://host.docker.internal:8080}
       - LLAMA_CPP_MODEL

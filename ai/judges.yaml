@@ -1,4 +1,4 @@
-# LAN: set JUDGE_N_URL to each laptop. Unset URLs use the main OLLAMA_URL.
+# The default panel uses OpenAI. Set OPENAI_API_KEY in the evaluator's environment.
 panel:
   quorum: ${JUDGES_QUORUM}
   execution: ${JUDGES_EXECUTION:-auto}
@@ -9,29 +9,11 @@ panel:
 
 judges:
   - name: judge-1
-    provider: ${JUDGE_1_PROVIDER:-ollama}
-    model: ${JUDGE_1_MODEL:-qwen3:8b}
-    url: ${JUDGE_1_URL}
-    fallback_url: ${JUDGE_1_FALLBACK_URL}
-    fallback_model: ${JUDGE_1_FALLBACK_MODEL}
-    api_key_env: ${JUDGE_1_API_KEY_ENV}
-    temperature: ${JUDGE_1_TEMPERATURE}
-    keep_alive: ${JUDGE_1_KEEP_ALIVE}
+    provider: openai
+    model: gpt-6-luna
   - name: judge-2
-    provider: ${JUDGE_2_PROVIDER:-ollama}
-    model: ${JUDGE_2_MODEL:-gemma3:4b}
-    url: ${JUDGE_2_URL}
-    fallback_url: ${JUDGE_2_FALLBACK_URL}
-    fallback_model: ${JUDGE_2_FALLBACK_MODEL}
-    api_key_env: ${JUDGE_2_API_KEY_ENV}
-    temperature: ${JUDGE_2_TEMPERATURE}
-    keep_alive: ${JUDGE_2_KEEP_ALIVE}
+    provider: openai
+    model: gpt-6-luna
   - name: judge-3
-    provider: ${JUDGE_3_PROVIDER:-ollama}
-    model: ${JUDGE_3_MODEL:-llama3.2:3b}
-    url: ${JUDGE_3_URL}
-    fallback_url: ${JUDGE_3_FALLBACK_URL}
-    fallback_model: ${JUDGE_3_FALLBACK_MODEL}
-    api_key_env: ${JUDGE_3_API_KEY_ENV}
-    temperature: ${JUDGE_3_TEMPERATURE}
-    keep_alive: ${JUDGE_3_KEEP_ALIVE}
+    provider: openai
+    model: gpt-6-luna

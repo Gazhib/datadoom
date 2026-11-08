@@ -22,7 +22,7 @@ docker compose up --build -d --wait
 
 Open [Datadoom](http://127.0.0.1:8000) or the [API docs](http://127.0.0.1:8000/docs). Set `DATADOOM_PORT` in the root `.env` to change the host port. The backend serves the built frontend and keeps its SQLite database in the `sqlite` volume. `docker compose down` stops the stack and retains the database.
 
-The workspace and API start without a model connection. The evaluator grades with a panel of three judges defined in [ai/judges.yaml](ai/judges.yaml). By default these are three local Ollama models, which the evaluator reaches at `http://host.docker.internal:11434` with Docker Desktop. Pull them as described in [Use Ollama with Docker](ai/README.md#use-ollama-with-docker). On other Docker engines, set `OLLAMA_URL` to an address reachable from the evaluator container. To change a judge, edit that file or set `JUDGE_1_*` to `JUDGE_3_*` in the root `.env` using [.env.example](.env.example), as described in the [judge panel](ai/README.md#judge-panel) section.
+All three judges in [ai/judges.yaml](ai/judges.yaml) use OpenAI GPT-6 Luna by default. Set `OPENAI_API_KEY` in the root `.env` before starting Compose. Edit each judge's `provider` and `model` in the YAML. The evaluator reads the file on each request.
 
 To enable organizer imports, set `ORGANIZER_GET_URL` in the root `.env`. Keep the full signed URL in single quotes. For a local smoke check, import [the synthetic fixture](backend/fixtures/synthetic.json) using **Import conversations**.
 

@@ -26,22 +26,24 @@ class JudgeConfigTests(unittest.TestCase):
         self.assertEqual(interpolate("${MISSING}", env), "")
         self.assertEqual(interpolate({"a": ["x-${SET}"], "b": 3}, env), {"a": ["x-value"], "b": 3})
 
-    def test_default_file_defines_three_local_judges_from_different_families(self):
-        config = load_judges(DEFAULT_JUDGES_FILE, {})
+    def test_default_file_defines_three_openai_luna_judges(self):
+        config = load_judges(DEFAULT_JUDGES_FILE, {
+            "JUDGE_1_PROVIDER": "ollama", "JUDGE_1_MODEL": "qwen3:8b", "JUDGE_1_URL": "http://lan.test:11434",
+        })
         self.assertEqual([judge.name for judge in config.judges], ["judge-1", "judge-2", "judge-3"])
-        self.assertEqual({judge.provider for judge in config.judges}, {"ollama"})
-        self.assertEqual([judge.model for judge in config.judges], ["qwen3:8b", "gemma3:4b", "llama3.2:3b"])
+        self.assertEqual({(judge.provider, judge.model) for judge in config.judges}, {("openai", "gpt-6-luna")})
         self.assertEqual((config.quorum, config.panel.timeout_seconds), (2, 540))
         self.assertTrue(all(judge.url is None and judge.temperature is None for judge in config.judges))
 
-    def test_environment_overrides_one_judge_without_editing_the_file(self):
+    def test_lan_preset_accepts_per_judge_environment_overrides(self):
         env = {
             "JUDGE_2_PROVIDER": "openai",
             "JUDGE_2_MODEL": "gpt-5.4-mini",
             "JUDGE_2_TEMPERATURE": "0.2",
             "JUDGES_QUORUM": "3",
         }
-        config = load_judges(DEFAULT_JUDGES_FILE, env)
+        preset = DEFAULT_JUDGES_FILE.parent / "presets" / "three-laptops-lan.yaml"
+        config = load_judges(preset, env)
         judge = config.judges[1]
         self.assertEqual((judge.provider, judge.model, judge.temperature), ("openai", "gpt-5.4-mini", 0.2))
         self.assertEqual(config.quorum, 3)

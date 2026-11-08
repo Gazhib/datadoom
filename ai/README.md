@@ -4,7 +4,7 @@ T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and
 
 ## Judge panel
 
-[`judges.yaml`](judges.yaml) matches the LAN preset with Qwen3 8B, Gemma 3 4B and Llama 3.2 3B. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
+All three seats in [`judges.yaml`](judges.yaml) use OpenAI GPT-6 Luna. Each judge gets the submitted checklist, transcript, constrained output schema and at most one repair. The evaluator combines valid ballots in YAML order:
 
 - **Yes/no and N/A:** plurality, with ties going to the earliest judge who chose a tied value.
 - **Scale:** plurality decides whether N/A applies. Otherwise the lower median of numeric votes wins.
@@ -14,7 +14,7 @@ A quorum (default: 2 of 3) must return valid grades. The result model lists cont
 
 Every ballot must ground its grades in the transcript, as the [judge research notes](../llm-as-judge-human-call-evaluation-research.md#decisive-requirement) require for employee scoring. Beyond citing real turn IDs, a yes or nonzero score must cite at least one operator or system turn, because client and bot turns cannot earn the operator credit. A serious-error flag set to yes must cite the operator turn that shows the violation. Omissions, N/A and zero scores may cite any context. A ballot that breaks either rule gets the usual single repair, and the log records `code=unsupported_evidence`. Hosted judges decode evidence and reason before the value, as local judges already did.
 
-The YAML is reread for every request. It expands `${NAME}` or `${NAME:-default}` in values. Set `EVALUATOR_JUDGES_FILE` to select a preset or custom YAML. `api_key_env` names an environment variable holding a key; the YAML itself contains no keys. For a different provider, set its model explicitly.
+Edit each judge's `provider` and `model` in `ai/judges.yaml`. The evaluator rereads the YAML on every request. It expands `${NAME}` or `${NAME:-default}` in values. Set `EVALUATOR_JUDGES_FILE` to select a preset or custom YAML. The optional `api_key_env` field names an environment variable holding a key.
 
 | Environment variable | Default | Use |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ python -m venv ai/.venv
 .\ai\.venv\Scripts\python.exe -m uvicorn ai.main:app --host 127.0.0.1 --port 8001
 ```
 
-Start the selected Ollama servers before the evaluator. After changing environment variables, restart the evaluator. Changes to the mounted YAML take effect on the next request.
+For the default panel, set `OPENAI_API_KEY` in the evaluator's environment before starting it. YAML edits take effect on the next request. Environment changes take effect when the evaluator starts again.
 
 ## Three laptops on a LAN
 
@@ -69,6 +69,7 @@ Start the selected Ollama servers before the evaluator. After changing environme
 From the main laptop, substitute the three addresses. Use small fallback models pulled on the main laptop if you want the panel to retain all three judges during an outage. Omit a fallback to let quorum cover that judge.
 
 ```bash
+export EVALUATOR_JUDGES_FILE=ai/presets/three-laptops-lan.yaml
 export JUDGE_1_URL=http://192.168.1.21:11434
 export JUDGE_2_URL=http://192.168.1.22:11434
 export JUDGE_3_URL=http://192.168.1.23:11434
