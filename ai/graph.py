@@ -17,6 +17,7 @@ from .contracts import EvaluationRequest, EvaluationResult
 from .errors import EvaluationError
 from .graph_state import JudgeBranch, JudgeState, PanelState
 from .judge import (
+    Usage,
     Verdict,
     build_attempt,
     call_model,
@@ -39,7 +40,7 @@ async def infer(state: JudgeState) -> dict:
         completion = await call_model(state["client"], state["provider"], state["attempt"], state["name"])
     except EvaluationError as error:
         return {"error": error}
-    return {"completion": completion}
+    return {"completion": completion, "usage": state.get("usage", Usage()).add(completion)}
 
 
 def after_inference(state: JudgeState) -> str:
@@ -48,7 +49,7 @@ def after_inference(state: JudgeState) -> str:
 
 def validate(state: JudgeState) -> dict:
     try:
-        return {"verdict": validate_attempt(state["completion"], state["data"])}
+        return {"verdict": validate_attempt(state["completion"], state["data"], state["attempt"], state["usage"])}
     except ValueError as error:
         log_invalid(state["name"], state["provider"], state["attempt"], error)
         if state["attempt"].number == 2:

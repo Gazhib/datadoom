@@ -8,7 +8,13 @@ from unittest.mock import patch
 
 import httpx
 
+from ai.config import load_judges
+from ai.contracts import EvaluationRequest
+from ai.graph import run_graph
+from ai.judge import Usage
 from ai.main import app, provider_client
+from ai.panel import run_panel
+from ai.scheduler import configured_seats
 from ai.test_evaluate import EvaluatorTestCase, completion, ollama
 
 
@@ -46,6 +52,32 @@ class GraphParityTests(EvaluatorTestCase):
                         response = self.post(routes=routes())
                     results.append((response.status_code, response.json()))
                 self.assertEqual(*results)
+
+    def test_both_engines_count_the_repair_and_tokens_of_every_attempt(self):
+        self.use_judges({"name": "solo", "provider": "ollama", "model": "m"})
+        config = load_judges()
+        seats = configured_seats(config)
+        data = EvaluationRequest.model_validate(self.data)
+        for engine in (run_panel, run_graph):
+            with self.subTest(engine=engine.__name__):
+                # The first ballot credits the operator with a client turn, so the judge repairs once.
+                replies = iter([ollama([dict(self.binary, evidence_turn_ids=["t1"]), self.scale], "m"),
+                                ollama([self.binary, self.scale], "m")])
+
+                async def handle(request):
+                    return httpx.Response(200, json={"version": "test"}) if request.method == "GET" else next(replies)
+
+                async def run():
+                    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+                        return await engine(client, config, seats, data, observe=outcomes.append)
+
+                outcomes = []
+                with patch("ai.panel.MIN_START_SECONDS", 0):
+                    result = asyncio.run(run())
+                self.assertEqual([grade.model_dump() for grade in result.grades], [self.binary, self.scale])
+                verdict = outcomes[0].verdict
+                # Ollama reports prompt and output tokens but no separate thinking count.
+                self.assertEqual((verdict.attempts, verdict.usage), (2, Usage(20, 12, None)))
 
     def mock_transport(self, *, stall=None, fail=False):
         async def handle(request):

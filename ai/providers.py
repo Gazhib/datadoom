@@ -44,6 +44,11 @@ DEFAULTS: dict[ProviderName, ProviderDefaults] = {
         "gemini-3.1-flash-lite", "GEMINI_MODEL", GEMINI_API, None, "", ("https",),
         ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     ),
+    # Claude calls go through the Anthropic SDK in claude.py, not Provider.payload.
+    "anthropic": ProviderDefaults(
+        "claude-opus-5-5", "ANTHROPIC_MODEL", "https://api.anthropic.com", None, "/v1/messages", ("https",),
+        ("ANTHROPIC_API_KEY",),
+    ),
 }
 
 

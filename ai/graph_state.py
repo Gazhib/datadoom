@@ -8,7 +8,7 @@ import httpx
 from .config import JudgesConfig
 from .contracts import EvaluationRequest, EvaluationResult
 from .errors import EvaluationError
-from .judge import Attempt, Verdict
+from .judge import Attempt, Usage, Verdict
 from .panel import JudgeOutcome, Observe, PanelRun
 from .providers import Completion, Provider
 from .scheduler import Route, Seat
@@ -21,6 +21,7 @@ class JudgeState(TypedDict):
     name: str
     attempt: NotRequired[Attempt]
     completion: NotRequired[Completion]
+    usage: NotRequired[Usage]
     problem: NotRequired[ValueError | None]
     error: NotRequired[EvaluationError]
     verdict: NotRequired[Verdict]

@@ -66,9 +66,10 @@ class JudgeConfigTests(unittest.TestCase):
             ({"panel": {"quorum": 2}, "judges": [judge]}, "quorum"),
             ({"judges": [judge, judge]}, "unique"),
             ({"judges": []}, "judges"),
-            ({"judges": [dict(judge, provider="anthropic")]}, "provider"),
+            ({"judges": [dict(judge, provider="mistral")]}, "provider"),
             ({"judges": [dict(judge, name="has space")]}, "name"),
             ({"judges": [dict(judge, temperature=3)]}, "temperature"),
+            ({"judges": [dict(judge, provider="anthropic", temperature=0.2)]}, "temperature"),
         )
         for document, expected in cases:
             with self.subTest(document=document), self.assertRaises(ValueError) as caught:
@@ -120,6 +121,18 @@ class ProviderResolutionTests(unittest.TestCase):
             build_provider(insecure, {"OPENAI_API_KEY": "key"})
         with self.assertRaisesRegex(ValueError, "TEAM_OPENAI_KEY"):
             build_provider(judge, {"OPENAI_API_KEY": "other"})
+
+    def test_claude_defaults_to_the_messages_api_and_needs_a_key(self):
+        provider = build_provider(self.judge(provider="anthropic"), {"ANTHROPIC_API_KEY": "key"})
+        self.assertEqual(provider.model, "claude-opus-5-5")
+        self.assertEqual(str(provider.endpoint), "https://api.anthropic.com/v1/messages")
+        self.assertFalse(provider.local)
+        overridden = build_provider(
+            self.judge(provider="anthropic"), {"ANTHROPIC_API_KEY": "key", "ANTHROPIC_MODEL": "claude-sonnet-5-5"}
+        )
+        self.assertEqual(overridden.model, "claude-sonnet-5-5")
+        with self.assertRaisesRegex(ValueError, "ANTHROPIC_API_KEY"):
+            build_provider(self.judge(provider="anthropic"), {})
 
     def test_gemini_rejects_a_custom_url(self):
         judge = self.judge(provider="gemini", url="https://example.com")

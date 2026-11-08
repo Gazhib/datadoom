@@ -57,6 +57,9 @@ class JudgeConfig(ConfigModel):
     def validate_fallback(self) -> Self:
         if self.fallback_url and self.provider not in {"ollama", "llama.cpp"}:
             raise ValueError("Fallback servers are supported for local judges only.")
+        if self.temperature is not None and self.provider == "anthropic":
+            # Current Claude models reject non-default sampling parameters.
+            raise ValueError("Claude judges use the model's default temperature. Remove temperature.")
         return self
 
 

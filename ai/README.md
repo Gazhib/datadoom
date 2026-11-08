@@ -12,6 +12,8 @@ T-001 provides `POST /evaluate` at `127.0.0.1:8001`. It takes a conversation and
 
 A quorum (default: 2 of 3) must return valid grades. The result model lists contributing providers and models. Below quorum, a common judge failure preserves its status and code; mixed failures return `502 quorum_not_met`. If configured judges share a host, the evaluator can skip a queued judge once quorum is met and a strict majority of all possible votes fixes every grade value. Set `panel.early_exit: false` in YAML to collect all votes for an experiment.
 
+Every ballot must ground its grades in the transcript, as the [judge research notes](../llm-as-judge-human-call-evaluation-research.md#decisive-requirement) require for employee scoring. Beyond citing real turn IDs, a yes or nonzero score must cite at least one operator or system turn, because client and bot turns cannot earn the operator credit. A serious-error flag set to yes must cite the operator turn that shows the violation. Omissions, N/A and zero scores may cite any context. A ballot that breaks either rule gets the usual single repair, and the log records `code=unsupported_evidence`. Hosted judges decode evidence and reason before the value, as local judges already did.
+
 The YAML is reread for every request. It expands `${NAME}` or `${NAME:-default}` in values. Set `EVALUATOR_JUDGES_FILE` to select a preset or custom YAML. `api_key_env` names an environment variable holding a key; the YAML itself contains no keys. For a different provider, set its model explicitly.
 
 | Environment variable | Default | Use |
@@ -38,8 +40,11 @@ When a judge leaves `model`, `url` or `api_key_env` unset, the evaluator uses th
 | `openai` | `OPENAI_API_KEY` | `gpt-5.4-mini` | `OPENAI_MODEL` |
 | `qwen` | `DASHSCOPE_API_KEY` and `QWEN_BASE_URL` | `qwen-plus` | `QWEN_MODEL` |
 | `gemini` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `gemini-3.1-flash-lite` | `GEMINI_MODEL` |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude-opus-5-5` | `ANTHROPIC_MODEL` |
 
 For Qwen, use the HTTPS OpenAI-compatible base URL for your Alibaba Cloud Model Studio workspace and key region. For example, a Singapore workspace URL is `https://<workspace-id>.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`. The evaluator appends `/chat/completions`. Model overrides should support OpenAI Structured Outputs, Qwen JSON mode with thinking disabled, or Gemini structured output, respectively. [OpenAI Docs](https://developers.openai.com/api/docs/models/gpt-5.4-mini), [Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/first-api-call-to-qwen), [Gemini API](https://ai.google.dev/api/generate-content).
+
+Claude judges go through the official [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) rather than the shared HTTP client. Each call streams a Messages API request with [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) built from the same evidence-first schema. The SDK turns constraints the API does not enforce, such as the grade count, into schema descriptions; the evaluator still validates them. Current Claude models think before answering, so each call allows 16,000 thinking tokens on top of the answer budget, and the reported completion tokens include thinking. The instructions and checklist are cached between conversations. The SDK retries rate limits, overloads and dropped connections twice within the judge timeout. Claude judges reject a `temperature` setting because current models accept only their default sampling.
 
 Hosted providers receive the submitted checklist and transcript. Keep keys in the evaluator's environment and use synthetic data until organizers approve external processing of official transcripts. Calls may incur provider charges, including the single repair attempt if used.
 
@@ -224,6 +229,8 @@ A separate Russian office-hours dialogue returned eight live grades in 37.14 sec
 
 The harness contains 24 labeled conversations (8 each in RU, KZ, and EN), with 43 criterion checks. Each case submits only its targeted criteria. It tests both channels, speaker attribution, verification and N/A rules, serious errors, injected text, a 60-turn call and the edited-checklist pair. Accuracy means the grade value matches and at least one cited turn is an acceptable anchor. Reports include value and evidence accuracy separately, judge breakdowns, panel agreement and p50/p95 timings. Reports are written under `ai/eval/reports/` and are ignored by Git.
 
+Each accuracy block also separates false accusations (a harsher grade than the label) from missed failures (a more lenient one), and counts N/A mismatches and missing verdicts. It reports Cohen's κ against the labels, with failed judges counted as disagreement. Every block is split by criterion, language and channel, because a language or noisy voice transcripts can fail while the total looks acceptable. The panel adds Krippendorff's α between judges. Each judge adds status counts, error codes, repair rate and mean tokens per evaluation including repairs, scaled to 1,000 evaluations for cost estimates. Providers that do not report a count show `null`.
+
 ```bash
 python -m ai.eval.run --offline
 python -m ai.eval.run --engine legacy --offline
@@ -233,11 +240,11 @@ python -m ai.eval.run --judges-file ai/presets/one-laptop-8gb.yaml \
 
 | Run | Cases | Correct value and evidence | Agreement | p50 / p95 |
 | --- | ---: | ---: | ---: | --- |
-| LangGraph offline stub | 24 | 1/43 | 0.475 | 0.019 s / 0.029 s |
+| LangGraph offline stub | 24 | 13/43 | 0.475 | 0.018 s / 0.030 s |
 | Warm Qwen3 1.7B baseline, KZ and EN regressions | 2 | 1/4 | 1.000 (one judge) | 11.509 s / 11.639 s |
 | Warm Qwen3 1.7B with speaker anchors | 2 | 1/4 | 1.000 (one judge) | 12.228 s / 12.288 s |
 
-The offline stub uses canned ballots without access to the labels; it verifies reporting and does not measure model quality. The live experiment added the first operator turn and system event IDs plus guidance on attribution, completed events and N/A. It raised p95 by 5.6% and corrected no additional checks, so the production prompt stayed unchanged. V-03 remains open. Repeat these cases on the three-laptop panel before comparing a compact transcript format. When comparing prompts, use the same judge configuration and cases, and only keep a variant if accuracy increases with less than 20% added latency.
+The offline stub uses canned ballots without access to the labels; it verifies reporting and does not measure model quality. Its votes cite the first operator or system turn so that yes votes pass the attribution check; earlier stub runs cited the first turn and scored 1/43. The live experiment added the first operator turn and system event IDs plus guidance on attribution, completed events and N/A. It raised p95 by 5.6% and corrected no additional checks, so the production prompt stayed unchanged. V-03 remains open. Repeat these cases on the three-laptop panel before comparing a compact transcript format. When comparing prompts, use the same judge configuration and cases, and only keep a variant if accuracy increases with less than 20% added latency.
 
 ## Provider spike
 

@@ -4,8 +4,11 @@ annotated-doc==0.0.5
     # via fastapi
 annotated-types==0.8.0
     # via pydantic
+anthropic==2.6.0
+    # via -r ai/requirements.in
 anyio==4.16.0
     # via
+    #   anthropic
     #   httpx
     #   httpx2
     #   langsmith
@@ -22,6 +25,8 @@ click==8.5.1
     # via uvicorn
 distro==1.9.0
     # via langsmith
+docstring-parser==0.18.0
+    # via anthropic
 fastapi==0.162.0
     # via -r ai/requirements.in
 h11==0.16.0
@@ -39,13 +44,17 @@ httpx==0.28.1
     #   langchain-core
     #   langgraph-sdk
 httpx2==2.16.0
-    # via langsmith
+    # via
+    #   anthropic
+    #   langsmith
 idna==3.20
     # via
     #   anyio
     #   httpx
     #   httpx2
     #   requests
+jiter==0.19.0
+    # via anthropic
 jsonpatch==1.44
     # via langchain-core
 jsonpointer==3.10
@@ -73,7 +82,9 @@ langgraph-sdk==0.4.14
 langsmith==0.14.17
     # via langchain-core
 opentelemetry-api==1.45.2
-    # via fastapi
+    # via
+    #   anthropic
+    #   fastapi
 orjson==3.13.0
     # via
     #   langgraph-sdk
@@ -87,6 +98,7 @@ packaging==26.3
 pydantic==2.14.3
     # via
     #   -r ai/requirements.in
+    #   anthropic
     #   fastapi
     #   langchain-core
     #   langgraph
@@ -104,7 +116,9 @@ requests==2.34.2
 requests-toolbelt==1.0.0
     # via langsmith
 sniffio==1.3.1
-    # via langsmith
+    # via
+    #   anthropic
+    #   langsmith
 starlette==1.10.0
     # via fastapi
 tenacity==9.2.1
@@ -115,6 +129,7 @@ truststore==0.10.5
     #   httpx2
 typing-extensions==4.16.0
     # via
+    #   anthropic
     #   anyio
     #   fastapi
     #   httpx2

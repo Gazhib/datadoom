@@ -11,7 +11,7 @@ def require_nonblank(value: str) -> str:
 
 NonBlank = Annotated[str, AfterValidator(require_nonblank)]
 GradeValue = Literal["yes", "no", "na"] | int
-ProviderName = Literal["llama.cpp", "ollama", "openai", "qwen", "gemini"]
+ProviderName = Literal["llama.cpp", "ollama", "openai", "qwen", "gemini", "anthropic"]
 
 
 class ContractModel(BaseModel):

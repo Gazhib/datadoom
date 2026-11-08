@@ -3,25 +3,28 @@
 import argparse
 import asyncio
 import json
-import math
-from collections import defaultdict
-from dataclasses import dataclass
+from collections import Counter, defaultdict
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from statistics import mean, median
+from statistics import mean
 from time import perf_counter
 
 import httpx
 
 from ai.config import MAX_TIMEOUT_SECONDS, JudgesConfig, load_judges
-from ai.contracts import ContractModel, EvaluationRequest, Grade, GradeValue
+from ai.contracts import ContractModel, EvaluationRequest, EvaluationResult, Grade, GradeValue
 from ai.errors import EvaluationError
+from ai.eval.metrics import Accuracy, error_kind, krippendorff_alpha, latency, tokens
 from ai.graph import run_graph
+from ai.judge import Usage
 from ai.panel import JudgeOutcome, run_panel
-from ai.scheduler import configured_seats
+from ai.scheduler import Seat, configured_seats
 
 
 ROOT = Path(__file__).parent
+Evaluator = Callable[..., Awaitable[EvaluationResult]]
 
 
 class Label(ContractModel):
@@ -55,35 +58,87 @@ def load_cases(names: list[str]) -> list[Case]:
     return cases
 
 
-@dataclass
-class Accuracy:
-    labels: int = 0
-    correct_value: int = 0
-    correct_evidence: int = 0
-    correct: int = 0
+def by_key() -> defaultdict:
+    return defaultdict(Accuracy)
 
-    def add(self, expected: Label, observed: Grade | None) -> bool:
-        value = observed is not None and expected.value == observed.value
-        evidence = observed is not None and bool(set(expected.evidence_turn_ids).intersection(observed.evidence_turn_ids))
-        self.labels += 1
-        self.correct_value += value
-        self.correct_evidence += evidence
-        self.correct += value and evidence
-        return value and evidence
+
+@dataclass
+class Breakdown:
+    """Accuracy overall and per criterion, language and channel. Each language and channel needs its
+    own acceptance check: an aggregate can hide a weak language or noisy voice transcripts."""
+    total: Accuracy = field(default_factory=Accuracy)
+    criteria: defaultdict = field(default_factory=by_key)
+    languages: defaultdict = field(default_factory=by_key)
+    channels: defaultdict = field(default_factory=by_key)
+
+    def add(self, case: Case, grades: dict[str, Grade]) -> dict[str, bool]:
+        conversation = case.request.conversation
+        criteria = {row.id: row for row in case.request.checklist.criteria}
+        passed = {}
+        for name, label in case.expected.items():
+            scopes = (self.total, self.criteria[name], self.languages[conversation.language],
+                      self.channels[conversation.channel])
+            for accuracy in scopes:
+                passed[name] = accuracy.add(criteria[name], label.value, label.evidence_turn_ids, grades.get(name))
+        return passed
 
     def report(self) -> dict:
+        if not self.total.labels:
+            return {"labels": 0}
         return {
-            "labels": self.labels, "correct": self.correct, "accuracy": self.correct / self.labels,
-            "value_accuracy": self.correct_value / self.labels,
-            "evidence_accuracy": self.correct_evidence / self.labels,
+            **self.total.report(),
+            "by_criterion": {name: accuracy.report() for name, accuracy in self.criteria.items()},
+            "by_language": {name: accuracy.report() for name, accuracy in self.languages.items()},
+            "by_channel": {name: accuracy.report() for name, accuracy in self.channels.items()},
         }
 
 
-def latency(values: list[float]) -> dict:
-    if not values:
-        return {"p50_seconds": None, "p95_seconds": None}
-    return {"p50_seconds": round(median(values), 3),
-            "p95_seconds": round(sorted(values)[math.ceil(len(values) * .95) - 1], 3)}
+@dataclass
+class JudgeStats:
+    accuracy: Breakdown = field(default_factory=Breakdown)
+    seconds: list[float] = field(default_factory=list)
+    statuses: Counter = field(default_factory=Counter)
+    error_codes: Counter = field(default_factory=Counter)
+    repaired: int = 0
+    usage: list[Usage] = field(default_factory=list)
+
+    def add(self, case: Case, seat: Seat, outcome: JudgeOutcome | None) -> dict:
+        """Record one judge's outcome for a case and return its row for the case details."""
+        verdict = outcome.verdict if outcome else None
+        grades = {grade.criterion_id: grade for grade in verdict.grades} if verdict else {}
+        self.statuses[outcome.status if outcome else "missing"] += 1
+        if outcome and outcome.error_code:
+            self.error_codes[outcome.error_code] += 1
+        if outcome and outcome.seconds is not None:
+            self.seconds.append(outcome.seconds)
+        if verdict:
+            self.usage.append(verdict.usage)
+            self.repaired += verdict.attempts > 1
+        # Skips are not model errors. Measure model quality only where a judge was tried.
+        if outcome and outcome.status != "skipped":
+            self.accuracy.add(case, grades)
+        return {
+            "status": outcome.status if outcome else "missing", "seconds": outcome.seconds if outcome else None,
+            "model": verdict.model if verdict else outcome.route.provider.model if outcome else seat.provider.model,
+            "error": outcome.error_code if outcome else None, "attempts": verdict.attempts if verdict else None,
+            "grades": {criterion: {"value": grade.value, "evidence_turn_ids": grade.evidence_turn_ids}
+                       for criterion, grade in grades.items() if criterion in case.expected},
+        }
+
+    def report(self) -> dict:
+        valid = self.statuses["ok"]
+        return {
+            **self.accuracy.report(), **latency(self.seconds), "statuses": dict(self.statuses),
+            "error_codes": dict(self.error_codes), "repair_rate": self.repaired / valid if valid else None,
+            "tokens": tokens(self.usage),
+        }
+
+
+def ballot_units(case: Case, outcomes: list[JudgeOutcome]) -> list[list[GradeValue]]:
+    """One unit per submitted criterion with every valid judge's vote. Verdicts keep checklist order."""
+    verdicts = [outcome.verdict for outcome in outcomes if outcome.verdict is not None]
+    return [[verdict.grades[index].value for verdict in verdicts]
+            for index in range(len(case.request.checklist.criteria))]
 
 
 def offline_panel() -> JudgesConfig:
@@ -93,7 +148,16 @@ def offline_panel() -> JudgesConfig:
     })
 
 
+def stub_evidence(case: Case) -> str:
+    """The first turn that can carry operator credit, so stub votes pass the attribution check."""
+    turns = case.request.conversation.turns
+    return next((turn.id for speaker in ("operator", "system") for turn in turns if turn.speaker == speaker),
+                turns[0].id)
+
+
 def offline_transport(case: Case) -> httpx.MockTransport:
+    evidence = stub_evidence(case)
+
     def reply(request):
         if request.method == "GET":
             return httpx.Response(200, json={"version": "stub"})
@@ -102,7 +166,7 @@ def offline_transport(case: Case) -> httpx.MockTransport:
         n = int(model.rsplit("-", 1)[-1])
         grades = [
             {"id": row.id, "v": row.allowed_values()[(n - 1) % len(row.allowed_values())],
-             "r": "Stub response", "e": [case.request.conversation.turns[0].id]}
+             "r": "Stub response", "e": [evidence]}
             for row in case.request.checklist.criteria
         ]
         return httpx.Response(200, json={"model": model, "done": True, "done_reason": "stop",
@@ -110,89 +174,68 @@ def offline_transport(case: Case) -> httpx.MockTransport:
     return httpx.MockTransport(reply)
 
 
+async def evaluate_case(
+    evaluator: Evaluator, live: httpx.AsyncClient, config: JudgesConfig, seats: list[Seat], case: Case,
+    offline: bool, observe: Callable[[JudgeOutcome], None],
+) -> tuple[EvaluationResult | None, str | None]:
+    try:
+        if offline:
+            async with httpx.AsyncClient(transport=offline_transport(case)) as stub:
+                return await evaluator(stub, config, seats, case.request, emit_panel=True, observe=observe), None
+        return await evaluator(live, config, seats, case.request, emit_panel=True, observe=observe), None
+    except EvaluationError as failure:
+        return None, failure.code
+
+
+def panel_rows(case: Case, grades: dict[str, Grade], passed: dict[str, bool]) -> dict:
+    criteria = {row.id: row for row in case.request.checklist.criteria}
+    rows = {}
+    for criterion, label in case.expected.items():
+        grade = grades.get(criterion)
+        value = grade.value if grade else None
+        rows[criterion] = {
+            "expected": label.value, "value": value, "evidence_turn_ids": grade.evidence_turn_ids if grade else [],
+            "passed": passed[criterion], "mismatch": error_kind(criteria[criterion], label.value, value),
+        }
+    return rows
+
+
 async def measure(cases: list[Case], config: JudgesConfig, engine: str, offline: bool) -> dict:
     seats = configured_seats(config)
     evaluator = run_graph if engine == "langgraph" else run_panel
-    panel_total = Accuracy()
-    panel_criteria = defaultdict(Accuracy)
-    judge_totals = {seat.name: Accuracy() for seat in seats}
-    judge_criteria = {seat.name: defaultdict(Accuracy) for seat in seats}
-    judge_times = defaultdict(list)
-    panel_times = []
-    agreement = []
-    details = []
+    panel = Breakdown()
+    judges = {seat.name: JudgeStats() for seat in seats}
+    panel_times, agreement, units, details = [], [], [], []
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(MAX_TIMEOUT_SECONDS, connect=3), trust_env=False) as live:
         for case in cases:
-            name = case.request.conversation.key
             outcomes: list[JudgeOutcome] = []
             start = perf_counter()
-            panel_grades = {}
-            error = None
-            case_agreement = None
-            try:
-                if offline:
-                    async with httpx.AsyncClient(transport=offline_transport(case)) as stub:
-                        result = await evaluator(stub, config, seats, case.request, emit_panel=True, observe=outcomes.append)
-                else:
-                    result = await evaluator(live, config, seats, case.request, emit_panel=True, observe=outcomes.append)
-                panel_grades = {grade.criterion_id: grade for grade in result.grades}
-                if result.panel:
-                    case_agreement = result.panel.agreement
-                    agreement.append(case_agreement)
-            except EvaluationError as failure:
-                error = failure.code
-
+            result, error = await evaluate_case(evaluator, live, config, seats, case, offline, outcomes.append)
             elapsed = perf_counter() - start
             panel_times.append(elapsed)
-            observed = {}
-            for criterion, label in case.expected.items():
-                grade = panel_grades.get(criterion)
-                passed = panel_total.add(label, grade)
-                panel_criteria[criterion].add(label, grade)
-                observed[criterion] = {
-                    "expected": label.value, "value": grade.value if grade else None,
-                    "evidence_turn_ids": grade.evidence_turn_ids if grade else [], "passed": passed,
-                }
-
+            grades = {grade.criterion_id: grade for grade in result.grades} if result else {}
+            case_agreement = result.panel.agreement if result and result.panel else None
+            if case_agreement is not None:
+                agreement.append(case_agreement)
+            passed = panel.add(case, grades)
+            units.extend(ballot_units(case, outcomes))
             by_name = {outcome.name: outcome for outcome in outcomes}
-            judges = {}
-            for seat in seats:
-                outcome = by_name.get(seat.name)
-                verdict = outcome.verdict if outcome else None
-                grades = {grade.criterion_id: grade for grade in verdict.grades} if verdict else {}
-                if outcome and outcome.seconds is not None:
-                    judge_times[seat.name].append(outcome.seconds)
-                # Skips are not model errors. Measure model quality only where a judge was tried.
-                if outcome and outcome.status != "skipped":
-                    for criterion, label in case.expected.items():
-                        judge_totals[seat.name].add(label, grades.get(criterion))
-                        judge_criteria[seat.name][criterion].add(label, grades.get(criterion))
-                judges[seat.name] = {
-                    "status": outcome.status if outcome else "missing", "seconds": outcome.seconds if outcome else None,
-                    "model": verdict.model if verdict else outcome.route.provider.model if outcome else seat.provider.model,
-                    "error": outcome.error_code if outcome else None,
-                    "grades": {criterion: {"value": grade.value, "evidence_turn_ids": grade.evidence_turn_ids}
-                               for criterion, grade in grades.items() if criterion in case.expected},
-                }
-
-            detail = {"case": name, "language": case.request.conversation.language, "error": error,
-                      "seconds": round(elapsed, 3), "agreement": case_agreement, "panel": observed, "judges": judges}
-            details.append(detail)
-            print(json.dumps({"case": name, "seconds": detail["seconds"], "error": error,
-                              "correct": sum(row["passed"] for row in observed.values()), "labels": len(observed)}),
-                  flush=True)
+            conversation = case.request.conversation
+            details.append({
+                "case": conversation.key, "language": conversation.language, "channel": conversation.channel,
+                "error": error, "seconds": round(elapsed, 3), "agreement": case_agreement,
+                "panel": panel_rows(case, grades, passed),
+                "judges": {seat.name: judges[seat.name].add(case, seat, by_name.get(seat.name)) for seat in seats},
+            })
+            print(json.dumps({"case": conversation.key, "seconds": round(elapsed, 3), "error": error,
+                              "correct": sum(passed.values()), "labels": len(passed)}), flush=True)
 
     return {
         "mode": "offline-stub" if offline else "live", "engine": engine,
-        "panel": {**panel_total.report(), **latency(panel_times),
-                  "agreement": mean(agreement) if agreement else None,
-                  "by_criterion": {criterion: accuracy.report() for criterion, accuracy in panel_criteria.items()}},
-        "judges": {
-            name: {**(accuracy.report() if accuracy.labels else {"labels": 0}), **latency(judge_times[name]),
-                   "by_criterion": {key: value.report() for key, value in judge_criteria[name].items()}}
-            for name, accuracy in judge_totals.items()
-        },
+        "panel": {**panel.report(), **latency(panel_times), "agreement": mean(agreement) if agreement else None,
+                  "judge_alpha": krippendorff_alpha(units)},
+        "judges": {name: stats.report() for name, stats in judges.items()},
         "cases": details,
     }
 

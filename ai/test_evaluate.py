@@ -8,9 +8,12 @@ from time import perf_counter
 from unittest.mock import patch
 
 import httpx
+import httpx2
 import yaml
 
+from ai import claude
 from ai.main import app, provider_client
+from ai.providers import Provider
 from ai.scheduler import probe_cache
 
 
@@ -63,6 +66,44 @@ def ollama(grades: list[dict], model: str, *, done_reason="stop") -> httpx.Respo
             "eval_count": 6,
         },
     )
+
+
+def claude_reply(grades: list[dict], model="claude-opus-5-5", *, stop_reason="end_turn") -> httpx.Response:
+    """A streamed Messages API reply: a thinking block the judge must skip, then the grades."""
+    usage = {"input_tokens": 10, "output_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 5}
+    message = {
+        "id": "msg_test", "type": "message", "role": "assistant", "model": model, "content": [],
+        "stop_reason": None, "stop_sequence": None, "usage": usage,
+    }
+    events = [
+        {"type": "message_start", "message": message},
+        {
+            "type": "content_block_start", "index": 0,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "ignored"}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "sig"}},
+        {"type": "content_block_stop", "index": 0},
+        {"type": "content_block_start", "index": 1, "content_block": {"type": "text", "text": ""}},
+        {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": wire(grades)}},
+        {"type": "content_block_stop", "index": 1},
+        {
+            "type": "message_delta", "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+            "usage": {"output_tokens": 42},
+        },
+        {"type": "message_stop"},
+    ]
+    body = "".join(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events)
+    return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body.encode())
+
+
+def sdk_transport(handle) -> httpx2.MockTransport:
+    """The Anthropic SDK uses httpx2; answer its requests with the same handler as the other providers."""
+    async def bridge(request: httpx2.Request) -> httpx2.Response:
+        response = await handle(request)
+        return httpx2.Response(response.status_code, headers=dict(response.headers), content=response.content)
+
+    return httpx2.MockTransport(bridge)
 
 
 class EvaluatorTestCase(unittest.TestCase):
@@ -130,7 +171,10 @@ class EvaluatorTestCase(unittest.TestCase):
                 return await client.post("/evaluate", json=self.data)
 
         app.dependency_overrides[provider_client] = mock_provider
-        with patch("ai.panel.MIN_START_SECONDS", 0):
+        def sdk_client() -> httpx2.AsyncClient:
+            return httpx2.AsyncClient(transport=sdk_transport(handle))
+
+        with patch("ai.panel.MIN_START_SECONDS", 0), patch("ai.claude.http_client", sdk_client):
             return asyncio.run(send())
 
 
@@ -177,6 +221,36 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.requests), 2)
         self.assertIn("Cite only exact turn IDs", self.requests[1]["messages"][0]["content"])
+
+    def test_credit_and_accusations_need_evidence_that_can_show_the_operator(self):
+        flag = {"id": "serious", "label": "Serious error", "instruction": "Yes if the operator insulted the client.",
+                "kind": "flag", "weight": 0, "scale": [], "allow_na": False, "na_rule": None, "section": None}
+        self.data["checklist"]["criteria"].append(flag)
+        clean = {"criterion_id": "serious", "value": "no", "reason": "No serious error.", "evidence_turn_ids": ["t1"]}
+        valid = [self.binary, self.scale, clean]
+        # smoke.json speakers: t1 client, t2 and t3 operator, t4 system.
+        cases = (
+            (0, {"evidence_turn_ids": ["t1"]}, "Credit only operator actions"),
+            (0, {"evidence_turn_ids": ["t4"]}, None),
+            (0, {"value": "no", "evidence_turn_ids": ["t1"]}, None),
+            (1, {"evidence_turn_ids": ["t1"]}, "Credit only operator actions"),
+            (1, {"value": 0, "evidence_turn_ids": ["t1"]}, None),
+            (2, {"value": "yes", "evidence_turn_ids": ["t4"]}, "flag set to yes must cite the operator turn"),
+            (2, {"value": "yes", "evidence_turn_ids": ["t1", "t3"]}, None),
+        )
+        for index, change, repair in cases:
+            with self.subTest(index=index, change=change):
+                self.requests.clear()
+                grades = list(valid)
+                grades[index] = dict(grades[index], **change)
+                response = self.post(completion(grades), completion(valid))
+                self.assertEqual(response.status_code, 200)
+                if repair:
+                    self.assertEqual(len(self.requests), 2)
+                    self.assertIn(repair, self.requests[1]["messages"][0]["content"])
+                else:
+                    self.assertEqual(len(self.requests), 1)
+                    self.assertEqual(response.json()["grades"][index], grades[index])
 
     def test_ollama_requests_structured_output_without_thinking(self):
         self.use_judges({"name": "solo", "provider": "ollama"})
@@ -261,7 +335,11 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         response_format = payload["response_format"]
         self.assertEqual(response_format["type"], "json_schema")
         self.assertTrue(response_format["json_schema"]["strict"])
-        self.assertEqual(response_format["json_schema"]["schema"]["properties"]["grades"]["minItems"], 2)
+        hosted = response_format["json_schema"]["schema"]
+        self.assertEqual(hosted["properties"]["grades"]["minItems"], 2)
+        # Evidence and reason decode before the verdict, matching the local schema.
+        row = hosted["$defs"]["ProviderGrade"]
+        self.assertEqual((list(row["properties"]), row["required"]), (["id", "e", "r", "v"], ["id", "e", "r", "v"]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json()["model"], {"provider": "panel", "model": "openai/gpt-5.4-mini-2026-03-17"}
@@ -310,6 +388,8 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         config = self.requests[0]["generationConfig"]
         self.assertEqual(config["responseMimeType"], "application/json")
         self.assertEqual(config["responseJsonSchema"]["properties"]["grades"]["minItems"], 2)
+        row = config["responseJsonSchema"]["$defs"]["ProviderGrade"]
+        self.assertEqual(list(row["properties"]), ["id", "e", "r", "v"])
         system = self.requests[1]["systemInstruction"]["parts"][0]["text"]
         self.assertIn("Cite only exact turn IDs", system)
         transcript = self.requests[1]["contents"][0]["parts"][0]["text"]
@@ -317,6 +397,74 @@ class SingleJudgeContractTests(EvaluatorTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["model"], {"provider": "panel", "model": f"gemini/{model}"})
         self.assertEqual(response.json()["grades"], [self.binary, self.scale])
+
+    def test_claude_streams_through_the_sdk_with_structured_output(self):
+        self.use_judges({"name": "solo", "provider": "anthropic"})
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "anthropic-test-key"}):
+            response = self.post(claude_reply([self.binary, self.scale]))
+
+        upstream = self.upstream_requests[0]
+        self.assertEqual(str(upstream.url), "https://api.anthropic.com/v1/messages")
+        self.assertEqual(upstream.headers["authorization"], "Bearer anthropic-test-key")
+        payload = self.requests[0]
+        self.assertEqual(payload["model"], "claude-opus-5-5")
+        self.assertTrue(payload["stream"])
+        self.assertNotIn("temperature", payload)
+        self.assertEqual(payload["max_tokens"], 1024 + claude.THINKING_TOKENS)
+        self.assertEqual(payload["system"][0]["cache_control"], {"type": "ephemeral"})
+        self.assertEqual(json.loads(payload["messages"][0]["content"])["turns"], self.data["conversation"]["turns"])
+        schema = payload["output_config"]["format"]["schema"]
+        # The API does not enforce item counts, so the SDK moves them into the description.
+        self.assertNotIn("minItems", schema["properties"]["grades"])
+        self.assertEqual(list(schema["$defs"]["ProviderGrade"]["properties"]), ["id", "e", "r", "v"])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["model"], {"provider": "panel", "model": "anthropic/claude-opus-5-5"})
+        self.assertEqual(response.json()["grades"], [self.binary, self.scale])
+
+    def test_claude_truncation_gets_more_room_and_a_refusal_gets_the_repair(self):
+        self.use_judges({"name": "solo", "provider": "anthropic"})
+        grades = [self.binary, self.scale]
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "anthropic-test-key"}):
+            truncated = self.post(claude_reply(grades, stop_reason="max_tokens"), claude_reply(grades))
+            budgets = [request["max_tokens"] - claude.THINKING_TOKENS for request in self.requests]
+            self.requests.clear()
+            refused = self.post(claude_reply(grades, stop_reason="refusal"), claude_reply(grades))
+
+        self.assertEqual((truncated.status_code, budgets), (200, [1024, 2048]))
+        self.assertEqual(refused.status_code, 200)
+        self.assertIn("Previous output failed validation", self.requests[1]["system"][0]["text"])
+
+    def test_claude_errors_map_to_evaluator_codes_without_upstream_detail(self):
+        self.use_judges({"name": "solo", "provider": "anthropic"})
+        overloaded = httpx.Response(
+            529, json={"type": "error", "error": {"type": "overloaded_error", "message": "private upstream detail"}}
+        )
+        cases = (
+            (overloaded, 502, "provider_error"),
+            (httpx2.ConnectError("private upstream detail"), 503, "provider_unavailable"),
+            (httpx2.ReadTimeout("private upstream detail"), 504, "provider_timeout"),
+        )
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "anthropic-test-key"}), patch("ai.claude.MAX_RETRIES", 0):
+            for reply, status, code in cases:
+                with self.subTest(code=code):
+                    response = self.post(reply)
+                    self.assertEqual(response.status_code, status)
+                    self.assertEqual(response.json()["error"]["code"], code)
+                    self.assertNotIn("private upstream detail", response.text)
+
+    def test_claude_counts_cached_prompt_tokens_and_thinking_as_output(self):
+        provider = Provider("anthropic", "claude-opus-5-5", httpx.URL("https://api.anthropic.com/v1/messages"), "key")
+        messages = [{"role": "system", "content": "rules"}, {"role": "user", "content": "transcript"}]
+
+        async def handle(request):
+            return claude_reply([self.binary], "claude-opus-5-5-20261001")
+
+        with patch("ai.claude.http_client", lambda: httpx2.AsyncClient(transport=sdk_transport(handle))):
+            result = asyncio.run(claude.complete(provider, messages, {"type": "object"}, 1024))
+
+        self.assertEqual(result.model, "claude-opus-5-5-20261001")
+        self.assertEqual((result.prompt_tokens, result.completion_tokens, result.thinking_tokens), (15, 42, None))
+        self.assertEqual(json.loads(result.content)["grades"][0]["id"], self.binary["criterion_id"])
 
     def test_misconfigured_judge_fails_without_network(self):
         cases = (
